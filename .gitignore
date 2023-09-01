@@ -9,3 +9,4 @@
 .history/
 logs/
 data/
+*.pyc
