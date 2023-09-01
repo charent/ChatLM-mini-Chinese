@@ -3,3 +3,4 @@ orjson
 torch
 rich
 tqdm
+fastparquet

@@ -5,6 +5,9 @@ from os import remove, mkdir, walk
 import time
 import codecs, csv
 from rich import progress
+from rich.table import Table
+from rich.console import Console
+from fastparquet import ParquetFile
 
 from logger import Logger
 
@@ -18,7 +21,7 @@ punctuation = set("!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~.,;《》？！“”‘’@
 
 def remove_duplicate_punctuation(sentence: str) -> str:
     '''
-    删除句子中重复的标点符号
+    删除句子中重复的标点符号、重复的空格，同时将换行变为特殊字符'\n'
     '''
     # 将空格（全角空格）替换为逗号, 可能会有重复的空客，下面删除重复标点会删除
     sentence = re.sub(' |　', '，', sentence) 
@@ -128,7 +131,7 @@ def process_web_text(keep_start: int=5, answer_less_word: int=10) -> None:
     def process_function(line: str) -> dict:
         item = ujson.loads(line)
 
-        if item['star'] < keep_start or len(item['content']) <= answer_less_word: 
+        if item['star'] < keep_start or len(item['content']) < answer_less_word: 
             return None
 
         # 数据清洗
@@ -168,7 +171,7 @@ def process_bake_qa(answer_less_word: int=15) -> None:
     def process_function(line: str) -> dict:
         item = ujson.loads(line)
 
-        if len(item['answer']) <= answer_less_word: 
+        if len(item['answer']) < answer_less_word: 
             return None
 
         # 数据清洗
@@ -191,7 +194,7 @@ def process_bake_qa(answer_less_word: int=15) -> None:
         answer = remove_duplicate_punctuation(answer)
 
         # 剔除问题和答案过短的数据
-        if len(question) <= 3 or len(answer) <= answer_less_word:
+        if len(question) < 3 or len(answer) < answer_less_word:
             return None
         
         write_obj = {
@@ -274,7 +277,7 @@ def process_chinese_medical_datasets(answer_less_word: int=15) -> None:
             print(item)
             return None
 
-        if len(item[3]) <= answer_less_word: 
+        if len(item[3]) < answer_less_word: 
             return None
 
         # 数据清洗
@@ -297,7 +300,7 @@ def process_chinese_medical_datasets(answer_less_word: int=15) -> None:
         answer = remove_duplicate_punctuation(answer)
 
         # 剔除问题和答案过短的数据
-        if len(question) <= 3 or len(answer) <= answer_less_word:
+        if len(question) < 3 or len(answer) < answer_less_word:
             return None
         
         write_obj = {
@@ -355,7 +358,7 @@ def process_finace_dataset(question_less_word: int=10, answer_less_word: int=15)
         answer = remove_duplicate_punctuation(answer)
 
         # 剔除问题和答案过短的数据
-        if len(question) <= question_less_word or len(answer) <= answer_less_word:
+        if len(question) < question_less_word or len(answer) < answer_less_word:
             return None
         
         write_obj = {
@@ -371,6 +374,97 @@ def process_finace_dataset(question_less_word: int=10, answer_less_word: int=15)
 
     read_and_write_template(read_file, write_file, process_function)
 
+
+def process_zhihu_kol_dataset(question_less_word: int=4, answer_less_word: int=10) -> None:
+    '''
+    处理知乎数据集
+    
+    '''
+    raw_zhihu_data_path = abspath(dirname(dirname(__file__))) + '/data/raw_data/zhihu-kol'
+    file_names = []
+    suffix = '.parquet'
+    for root, _, files in walk(raw_zhihu_data_path):
+        for file in files:
+            if file.endswith(suffix):
+                file_names.append(root + '/' + file)
+    
+    
+    def process_function(sentence: str) -> str:
+        '''
+        针对一个句子的数据清洗
+        '''
+        # 删除\r
+        sentence = sentence.replace('\r','') 
+
+        # 删除重复的标点符号
+        sentence = remove_duplicate_punctuation(sentence)
+
+        return sentence
+
+    # row keys :['INSTRUCTION', 'RESPONSE', 'SOURCE', 'METADATA']
+    save_file = ROOT_PATH + 'data/my_data/zhihu_kol.json'
+    if exists(save_file):
+        remove(save_file)
+
+    all_cnt, keep_cnt = 0, 0
+    for file in file_names:
+        pf = ParquetFile(file)
+        log.info('process file: {}'.format(file))
+
+        with open(save_file, 'a', encoding='utf-8') as f_write:
+            for pf_chunk in progress.track(pf): # pf分块
+                for rows in pf_chunk.iter_row_groups():
+                    for question, answer in zip(rows['INSTRUCTION'], rows['RESPONSE']):
+                        all_cnt += 1
+                        
+                        question = process_function(question)
+                        answer = process_function(answer)
+
+                        if len(question) < question_less_word or len(answer) < answer_less_word:
+                            continue
+                        
+                        keep_cnt += 1
+                        write_obj = {
+                            'question': question,
+                            'answer': answer,
+                        }
+                        ujson.dump(write_obj, f_write,  ensure_ascii=False,)
+                        f_write.write('\n')
+
+    log.info('save file to: {}, 全部数据共{}行，清洗后剩余{}行'.format(save_file, all_cnt, keep_cnt))
+
+
+def count_my_data() -> None:
+    '''
+    统计目前的所有数据集数据量
+    '''
+    my_data_files = get_path_of_suffix_files(ROOT_PATH + 'data/my_data', '.json')
+    result = [['file_name', 'count']]
+    all_cnt = 0
+    for file in my_data_files:
+        file_name = file.split('/')[-1]
+        cur_cnt = 0
+        with progress.open(file, 'r', encoding='utf-8') as f:
+            for _ in f:
+                cur_cnt += 1
+        
+        all_cnt += cur_cnt
+        result.append([file_name, cur_cnt])
+    
+    result.append(['汇总', all_cnt])
+
+    log.info(str(result))
+
+    console = Console()
+    table = Table(show_header=True, show_lines=True,)
+
+    for col in result[0]:
+        table.add_column(col)
+    for i in range(1, len(result)): # 跳过表头
+        table.add_row(str(result[i][0]), str(result[i][1]))
+
+    console.print(table)    
+
 if __name__ == '__main__':
 
     processed_file_dir = ROOT_PATH + '/data/my_data'
@@ -379,7 +473,7 @@ if __name__ == '__main__':
     
     # 注释了，不重复处理
     # 1.
-    # process_web_text(keep_start=10, answer_less_word=15)
+    # process_web_text(keep_start=5, answer_less_word=15)
 
     # 2.
     # process_bake_qa(answer_less_word=15)
@@ -388,6 +482,10 @@ if __name__ == '__main__':
     # process_chinese_medical_datasets(answer_less_word=15)
 
     # 4.
-    process_finace_dataset(question_less_word=10, answer_less_word=15)
+    # process_finace_dataset(question_less_word=10, answer_less_word=15)
+
+    # 5.
+    process_zhihu_kol_dataset(question_less_word=4, answer_less_word=10)
+    count_my_data()
 
 
