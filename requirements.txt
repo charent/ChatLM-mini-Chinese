@@ -4,3 +4,4 @@ torch
 rich
 tqdm
 fastparquet
+pandas

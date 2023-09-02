@@ -4,10 +4,11 @@ from os.path import dirname, abspath, exists
 from os import remove, mkdir, walk
 import time
 import codecs, csv
+import pandas as pd 
 from rich import progress
 from rich.table import Table
 from rich.console import Console
-from fastparquet import ParquetFile
+from fastparquet import ParquetFile, write
 
 from logger import Logger
 
@@ -53,13 +54,24 @@ def get_sentences_dice_similarity(st_a: str, st_b: str) -> float:
     
     return ( 2 * len(inter_set)) / total_len
 
+def write_single_parquet_file(file_name: str, data_frame: pd.DataFrame) -> None:
+    '''
+    将dataframe写到单独的parquet file中
+    '''
+    append = False
+    if exists(file_name):
+        append = True 
 
-def read_and_write_template(read_file: str, write_to_file: str, call_back: object) -> None:
+    write(file_name, data_frame, compression='GZIP',append=append)
+
+
+def read_and_write_template(read_file: str, write_to_file: str, call_back: object, group_cnt: int=10000) -> None:
     '''
     处理数据读写模板，需要提供一个回调函数call_back，
     read_file: 原始数据文件
     write_to_file：处理后的要保存数据文件
     call_back：函数输入一个字符串，输出一个处理后的字典dict，如果输入的字符串为无效数据，请返回None
+    group_cnt: parquet file分割行数
     如：
     >>> def call_back(inputs: str) -> dict:
     >>>     if check(inputs) not valid:
@@ -75,36 +87,47 @@ def read_and_write_template(read_file: str, write_to_file: str, call_back: objec
     >>>     return my_dict
     '''
 
-    # 因为后面要append写入，如果已经存在处理后的文件，先删除
-    if exists(write_to_file):
-        remove(write_to_file)
-    
     log.info('process file:{}'.format(read_file))
     start = time.time()
     
     raw_line_cnt = 0
     keep_line_cnt = 0
     
-    with open(write_to_file, 'a', encoding='utf-8') as f_write:
-        with progress.open(read_file, 'r', encoding='utf-8') as f_read:
-            for line in f_read:
-                try:
-                    raw_line_cnt += 1
+    with progress.open(read_file, 'r', encoding='utf-8') as f_read:
+        cur_rows = []
+        append = cur_rows.append
+        for line in f_read:
+            try:
+                raw_line_cnt += 1
 
-                    write_obj = call_back(line)
+                write_dict = call_back(line)
 
-                    if write_obj is None: continue
+                if write_dict is None: continue
 
-                    keep_line_cnt += 1
-                    
-                    # ujson.dump(write_obj, f_write, indent=4, ensure_ascii=False)
-                    ujson.dump(write_obj, f_write,  ensure_ascii=False,)
-                    f_write.write('\n')
+                keep_line_cnt += 1
+                append(write_dict)
+                # ujson.dump(write_obj, f_write, indent=4, ensure_ascii=False)
+                # ujson.dump(write_obj, f_write,  ensure_ascii=False,)
+                # f_write.write('\n')
 
-                except Exception as e:
-                    log.error('处理文件异常：{}, content:{}'.format(str(e), line))
-                    raise e
+                if len(cur_rows) >= group_cnt:
+                    df = pd.DataFrame(cur_rows)
+                    write_single_parquet_file(write_to_file, df)
+                    cur_rows = []
+                    append = cur_rows.append
+
+            except Exception as e:
+                # log.error('处理文件异常：{}, content:{}'.format(str(e), line))
+                print(line)
+                raise e
         
+        # end for
+        # 处理末尾部分
+        if len(cur_rows) > 0:
+            df = pd.DataFrame(cur_rows)
+            write_single_parquet_file(write_to_file, df)
+            cur_rows = []
+    
     end = time.time()
 
     log.info('原始文件:{}，共{}行，处理后剩余{}行，保存到文件：{}。耗时：{:.6}s'\
@@ -123,9 +146,9 @@ def process_web_text(keep_start: int=5, answer_less_word: int=10) -> None:
     ]
 
     save_file_names = [
-        'data/my_data/my_web_text_zh_test.json',
-        'data/my_data/my_web_text_zh_train.json',
-        'data/my_data/my_web_text_zh_valid.json',
+        'data/my_data/my_web_text_zh_test.parquet',
+        'data/my_data/my_web_text_zh_train.parquet',
+        'data/my_data/my_web_text_zh_valid.parquet',
     ]
 
     def process_function(line: str) -> dict:
@@ -138,17 +161,20 @@ def process_web_text(keep_start: int=5, answer_less_word: int=10) -> None:
         # 去除重复的标点符号
         question = remove_duplicate_punctuation(item['title'])
         answer = remove_duplicate_punctuation(item['content'])
-        write_obj = {
+        write_dict = {
             "question": question,
             "answer": answer,
             "star": item['star']
         }
-        return write_obj
+        return write_dict
 
     for i, file_name in enumerate(file_names):
         read_file = ROOT_PATH + file_name
         write_file = ROOT_PATH + save_file_names[i]
         
+        # 后续append写入，存在文件先删除
+        if exists(write_file): remove(write_file)
+
         read_and_write_template(read_file, write_file, process_function)
                 
                  
@@ -164,8 +190,8 @@ def process_bake_qa(answer_less_word: int=15) -> None:
     ]
 
     save_file_names = [
-        'data/my_data/my_baike_qa_train.json',
-        'data/my_data/my_baike_qa_valid.json',
+        'data/my_data/my_baike_qa_train.parquet',
+        'data/my_data/my_baike_qa_valid.parquet',
     ]
 
     def process_function(line: str) -> dict:
@@ -197,16 +223,19 @@ def process_bake_qa(answer_less_word: int=15) -> None:
         if len(question) < 3 or len(answer) < answer_less_word:
             return None
         
-        write_obj = {
+        write_dict = {
                 "question": question,
                 "answer": answer,
             }
 
-        return write_obj
+        return write_dict
 
     for i, file_name in enumerate(file_names):
         read_file = ROOT_PATH + file_name
         write_file = ROOT_PATH + save_file_names[i]
+        
+        # 后续append写入，存在文件先删除
+        if exists(write_file): remove(write_file)
 
         read_and_write_template(read_file, write_file, process_function)
 
@@ -266,7 +295,7 @@ def process_chinese_medical_datasets(answer_less_word: int=15) -> None:
     # 获取要保存的文件名
     save_files = []
     for file_name in raw_data_files:
-        file_name = file_name.split('/')[-1][0: -(len(suffix))] + '.json'
+        file_name = file_name.split('/')[-1][0: -(len(suffix))] + '.parquet'
         file_name = ROOT_PATH  + 'data/my_data/' + file_name
         save_files.append(file_name)
     
@@ -303,16 +332,19 @@ def process_chinese_medical_datasets(answer_less_word: int=15) -> None:
         if len(question) < 3 or len(answer) < answer_less_word:
             return None
         
-        write_obj = {
+        write_dict = {
                 "question": question,
                 "answer": answer,
             }
 
-        return write_obj
+        return write_dict
 
     for i, file_name in enumerate(raw_data_files):
         read_file = file_name
         write_file = save_files[i]
+        
+        # 后续append写入，存在文件先删除
+        if exists(write_file): remove(write_file)
 
         read_and_write_template(read_file, write_file, process_function)
 
@@ -370,12 +402,15 @@ def process_finace_dataset(question_less_word: int=10, answer_less_word: int=15)
 
   
     read_file = finace_data_file[0: -4] + suffix
-    write_file = ROOT_PATH + 'data/my_data/' + read_file.split('/')[-1][0: -(len(suffix))] + '.json'
+    write_file = ROOT_PATH + 'data/my_data/' + read_file.split('/')[-1][0: -(len(suffix))] + '.parquet'
+
+    # 后续append写入，存在文件先删除
+    if exists(write_file): remove(write_file)
 
     read_and_write_template(read_file, write_file, process_function)
 
 
-def process_zhihu_kol_dataset(question_less_word: int=4, answer_less_word: int=10) -> None:
+def process_zhihu_kol_dataset(question_less_word: int=4, answer_less_word: int=10, group_cnt: int=10000) -> None:
     '''
     处理知乎数据集
     
@@ -402,39 +437,140 @@ def process_zhihu_kol_dataset(question_less_word: int=4, answer_less_word: int=1
         return sentence
 
     # row keys :['INSTRUCTION', 'RESPONSE', 'SOURCE', 'METADATA']
-    save_file = ROOT_PATH + 'data/my_data/zhihu_kol.json'
-    if exists(save_file):
-        remove(save_file)
+    save_file = ROOT_PATH + 'data/my_data/zhihu_kol.parquet'
+    
+    # 后续append写入，存在文件先删除
+    if exists(save_file): remove(save_file)
 
     all_cnt, keep_cnt = 0, 0
+    cur_rows = []
+    append = cur_rows.append
     for file in file_names:
         pf = ParquetFile(file)
         log.info('process file: {}'.format(file))
 
-        with open(save_file, 'a', encoding='utf-8') as f_write:
-            for pf_chunk in progress.track(pf): # pf分块
-                for rows in pf_chunk.iter_row_groups():
-                    for question, answer in zip(rows['INSTRUCTION'], rows['RESPONSE']):
-                        all_cnt += 1
-                        
-                        question = process_function(question)
-                        answer = process_function(answer)
+        for pf_chunk in progress.track(pf): # pf分块
+            for rows in pf_chunk.iter_row_groups():
+                for question, answer in zip(rows['INSTRUCTION'], rows['RESPONSE']):
+                    all_cnt += 1
+                    
+                    question = process_function(question)
+                    answer = process_function(answer)
 
-                        if len(question) < question_less_word or len(answer) < answer_less_word:
-                            continue
-                        
-                        keep_cnt += 1
-                        write_obj = {
-                            'question': question,
-                            'answer': answer,
-                        }
-                        ujson.dump(write_obj, f_write,  ensure_ascii=False,)
-                        f_write.write('\n')
+                    if len(question) < question_less_word or len(answer) < answer_less_word:
+                        continue
+                    
+                    keep_cnt += 1
+                    write_dict = {
+                        'question': question,
+                        'answer': answer,
+                    }
+                    append(write_dict)
+
+                    if len(cur_rows) >= group_cnt:
+                        df = pd.DataFrame(cur_rows)
+                        write_single_parquet_file(save_file, df)
+                        cur_rows = []
+                        append = cur_rows.append
+                    
+        # end for 
+        if len(cur_rows) > 0:
+            df = pd.DataFrame(cur_rows)
+            write_single_parquet_file(save_file, df)
+            cur_rows = []
 
     log.info('save file to: {}, 全部数据共{}行，清洗后剩余{}行'.format(save_file, all_cnt, keep_cnt))
 
 
-def count_my_data() -> None:
+def process_belle_knowledge_enhanced_data_set(answer_less_words: int=15, group_cnt: int=10000) -> None:
+    '''
+    处理belle开源的知识增强数据集
+    '''
+    file_names = [
+        'data/raw_data/bell_open_source/train_2M_CN.json',
+        'data/raw_data/bell_open_source/Belle_open_source_1M.json',
+    ]
+
+    save_file = ROOT_PATH + 'data/my_data/my_belll_3M_cn.parquet'
+
+    # 后续append写入，存在文件先删除
+    if exists(save_file): remove(save_file)
+
+    def process_function(line: str) -> dict:
+        '''
+        每行的处理函数
+        '''
+        item = ujson.loads(line)
+        question = item['instruction']
+        answer = item['output']
+
+        if len(answer) < answer_less_words:
+            return None
+        
+        question = remove_duplicate_punctuation(question)
+        answer = remove_duplicate_punctuation(answer)
+
+        if len(answer) < answer_less_words:
+            return None
+
+        write_dict = {
+            'question': question,
+            'answer': answer
+        }
+
+        return write_dict
+
+    for file in file_names:
+        file = ROOT_PATH + file
+
+        read_and_write_template(file, save_file, process_function)
+
+
+def merge_dataset_as_single_file(groups_cnt: int=10000, max_len: int=512) -> None:
+    '''
+    将多个数据集合并为一个数据集
+    '''
+    from_parquet_files = get_path_of_suffix_files(ROOT_PATH + 'data/my_data', '.parquet')
+
+    save_file = ROOT_PATH + 'data/my_dataset.parquet'
+
+    # 后续append写入，存在文件先删除
+    if exists(save_file): remove(save_file)
+
+    cur_rows = []
+    append = cur_rows.append
+    
+    all_cnt, keep_cnt = 0, 0
+    for file in from_parquet_files:
+        print('process file: {}'.format(file))
+
+        pf = ParquetFile(file)
+        for pf_chunk in progress.track(pf):
+            for rows in pf_chunk.iter_row_groups():
+                for question, answer in zip(rows['question'], rows['answer']):
+                    all_cnt += 1
+
+                    if len(question) > max_len or len(answer) > max_len:
+                        continue
+
+                    keep_cnt += 1
+                    append({'question': question , 'answer': answer})
+
+                    if len(cur_rows) >= groups_cnt:
+                        df = pd.DataFrame(cur_rows)
+                        write_single_parquet_file(save_file, df)
+                        cur_rows = []
+                        append = cur_rows.append
+        
+    # 处理末尾部分
+    if len(cur_rows) > 0:
+        df = pd.DataFrame(cur_rows)
+        write_single_parquet_file(save_file, df)
+        cur_rows = []
+
+    log.info("merge into file: {}, 全部数据共{}行，清洗后剩余{}行".format(save_file, all_cnt, keep_cnt))
+
+def count_my_json_data() -> None:
     '''
     统计目前的所有数据集数据量
     '''
@@ -447,6 +583,43 @@ def count_my_data() -> None:
         with progress.open(file, 'r', encoding='utf-8') as f:
             for _ in f:
                 cur_cnt += 1
+        
+        all_cnt += cur_cnt
+        result.append([file_name, cur_cnt])
+    
+    result.append(['汇总', all_cnt])
+
+    log.info(str(result))
+
+    console = Console()
+    table = Table(show_header=True, show_lines=True,)
+
+    for col in result[0]:
+        table.add_column(col)
+    for i in range(1, len(result)): # 跳过表头
+        table.add_row(str(result[i][0]), str(result[i][1]))
+
+    console.print(table)
+
+
+def count_my_parquet_data(parquet_file: str=None) -> None:
+    '''
+    统计dir目录下所有parquet数据集数据量
+    '''
+    my_data_files = [parquet_file]
+
+    if not parquet_file:
+        my_data_files = get_path_of_suffix_files(ROOT_PATH + 'data/my_data', '.parquet')
+
+    result = [['file_name', 'count']]
+    all_cnt = 0
+    for file in my_data_files:
+        file_name = file.split('/')[-1]
+        cur_cnt = 0
+        pf = ParquetFile(file)
+
+        for pf_chunk in pf:
+            cur_cnt += pf_chunk.info['rows']
         
         all_cnt += cur_cnt
         result.append([file_name, cur_cnt])
@@ -485,7 +658,17 @@ if __name__ == '__main__':
     # process_finace_dataset(question_less_word=10, answer_less_word=15)
 
     # 5.
-    process_zhihu_kol_dataset(question_less_word=4, answer_less_word=10)
-    count_my_data()
+    # process_zhihu_kol_dataset(question_less_word=4, answer_less_word=10)
+
+    # 6.
+    # process_belle_knowledge_enhanced_data_set(answer_less_words=15)
+
+
+    # finally
+    # merge_dataset_as_single_file(groups_cnt=10000)
+
+    count_my_parquet_data(ROOT_PATH + 'data/my_dataset.parquet')
+
+    # count_my_json_data()
 
 
