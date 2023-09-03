@@ -5,3 +5,4 @@ rich
 tqdm
 fastparquet
 pandas
+numpy

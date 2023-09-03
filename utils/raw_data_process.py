@@ -1,10 +1,11 @@
 import ujson
 import re
-from os.path import dirname, abspath, exists
+from os.path import dirname, abspath, exists, isdir
 from os import remove, mkdir, walk
 import time
 import codecs, csv
 import pandas as pd 
+import numpy as np
 from rich import progress
 from rich.table import Table
 from rich.console import Console
@@ -570,6 +571,22 @@ def merge_dataset_as_single_file(groups_cnt: int=10000, max_len: int=512) -> Non
 
     log.info("merge into file: {}, 全部数据共{}行，清洗后剩余{}行".format(save_file, all_cnt, keep_cnt))
 
+def shuffle_parquet_dataset(parquet_file: str, shuffle_file: str, seed: int=23333) -> None:
+    '''
+    打乱一个parquet文件数据集
+    '''
+    if not exists(parquet_file):
+        raise Exception('can not find parquet file: {}'.format(parquet_file))
+    
+    print('start shuffle...')
+    pf = ParquetFile(parquet_file)
+    df = pf.to_pandas()
+    df = df.sample(frac=1.0, replace=False, random_state=seed, axis=0)
+    
+    if exists(shuffle_file): remove(shuffle_file)
+    
+    write_single_parquet_file(shuffle_file, df)
+
 def count_my_json_data() -> None:
     '''
     统计目前的所有数据集数据量
@@ -606,10 +623,15 @@ def count_my_parquet_data(parquet_file: str=None) -> None:
     '''
     统计dir目录下所有parquet数据集数据量
     '''
-    my_data_files = [parquet_file]
+    my_data_files = []
 
     if not parquet_file:
         my_data_files = get_path_of_suffix_files(ROOT_PATH + 'data/my_data', '.parquet')
+    elif isdir(parquet_file):
+        my_data_files = get_path_of_suffix_files(parquet_file, '.parquet')
+    elif parquet_file.endswith('.parquet'):
+        my_data_files = [parquet_file]
+        
 
     result = [['file_name', 'count']]
     all_cnt = 0
@@ -638,6 +660,67 @@ def count_my_parquet_data(parquet_file: str=None) -> None:
 
     console.print(table)    
 
+
+def split_train_valid_test_datasets(seed: int=23333, train_ratio: float=0.85, test_ratio: float=0.10, valid_ratio: float=0.05, groups_cnt: int=10000) -> None:
+    '''
+    将原始数据拆分为训练集、测试集和验证集
+    '''
+    assert train_ratio + test_ratio + valid_ratio == 1.0
+
+    source_parquet_file = ROOT_PATH + 'data/my_dataset.parquet'
+
+    train_parquet_file = ROOT_PATH + 'data/my_train_datatset.parquet'
+    test_parquet_file = ROOT_PATH + 'data/my_test_datatset.parquet'
+    valid_parquet_file = ROOT_PATH + 'data/my_valid_datatset.parquet'
+
+    if exists(train_parquet_file): remove(train_parquet_file)
+    if exists(test_parquet_file): remove(test_parquet_file)
+    if exists(valid_parquet_file): remove(valid_parquet_file)
+
+    np.random.seed(seed)
+
+    train, test, valid = [], [], []
+
+    source_pf = ParquetFile(source_parquet_file)
+    for pf_chunk in progress.track(source_pf):
+        for rows in pf_chunk.iter_row_groups():
+            for question, answer in zip(rows['question'], rows['answer']):
+                rand = np.random.random()
+
+                cur_data = {'question': question , 'answer': answer}
+
+                if 0 <= rand < train_ratio:
+                    train.append(cur_data)
+                elif train_ratio <= rand  < train_ratio + test_ratio:
+                    test.append(cur_data)
+                else:
+                    valid.append(cur_data)
+                
+                if len(train) >= groups_cnt:
+                    write_single_parquet_file(train_parquet_file, pd.DataFrame(train))
+                    train = []
+                
+                if len(test) >= groups_cnt:
+                    write_single_parquet_file(test_parquet_file, pd.DataFrame(test))
+                    test = []
+                
+                if len(valid) >= groups_cnt:
+                    write_single_parquet_file(valid_parquet_file, pd.DataFrame(valid))
+                    valid = []
+                
+
+    if len(train) > 0:
+        write_single_parquet_file(train_parquet_file, pd.DataFrame(train))
+        train = []
+    
+    if len(test) > 0:
+        write_single_parquet_file(test_parquet_file, pd.DataFrame(test))
+        test = []
+    
+    if len(valid) > 0:
+        write_single_parquet_file(valid_parquet_file, pd.DataFrame(valid))
+        valid = []
+
 if __name__ == '__main__':
 
     processed_file_dir = ROOT_PATH + '/data/my_data'
@@ -664,10 +747,22 @@ if __name__ == '__main__':
     # process_belle_knowledge_enhanced_data_set(answer_less_words=15)
 
 
-    # finally
-    # merge_dataset_as_single_file(groups_cnt=10000)
+    # merge
+    # merge_dataset_as_single_file(groups_cnt=10000, max_len=512)
 
-    count_my_parquet_data(ROOT_PATH + 'data/my_dataset.parquet')
+    # shuffle
+    # shuffle_parquet_dataset(
+    #     parquet_file=ROOT_PATH + 'data/my_dataset.parquet', 
+    #     shuffle_file=ROOT_PATH + 'data/my_dataset.shuffle.parquet',  
+    #     seed=23333
+    # )
+
+    # split train validated ans test
+    # split_train_valid_test_datasets()
+
+    # count_my_parquet_data(ROOT_PATH + 'data/my_dataset.parquet')
+    count_my_parquet_data(ROOT_PATH + 'data/')
+
 
     # count_my_json_data()
 
