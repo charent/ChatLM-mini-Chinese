@@ -10,6 +10,7 @@ from rich import progress
 from rich.table import Table
 from rich.console import Console
 from fastparquet import ParquetFile, write
+from opencc import OpenCC
 
 from logger import Logger
 
@@ -20,6 +21,8 @@ log = Logger('data_process', save2file=True, file_name='raw_data_process.log').g
 ROOT_PATH = abspath(dirname(dirname(__file__))) + '/'
 
 punctuation = set("!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~.,;《》？！“”‘’@#￥%…&×（）——+【】{};；●，。&～、|\s:：\n")
+en_punctuation = ",().!;:"
+zh_punctuation = "，（）。！；："
 
 def remove_duplicate_punctuation(sentence: str) -> str:
     '''
@@ -40,6 +43,14 @@ def remove_duplicate_punctuation(sentence: str) -> str:
 
     return ans
 
+def convert_en_punctuation_to_zh_punct(sentence: str) -> str:
+    '''
+    将句子中的英文标点替换文中文标点
+    '''
+    n = len(zh_punctuation)
+    for i in range(n):
+        sentence = sentence.replace(en_punctuation[i], zh_punctuation[i])
+    return sentence
 
 def get_sentences_dice_similarity(st_a: str, st_b: str) -> float:
     '''
@@ -77,9 +88,9 @@ def read_and_write_template(read_file: str, write_to_file: str, call_back: objec
     >>> def call_back(inputs: str) -> dict:
     >>>     if check(inputs) not valid:
     >>>         return None
-    >>>    
-    >>>     do something for inputs
-    >>>
+    ...    
+    ...    do something for inputs
+    ...
     >>>     my_dict = {
     >>>             'question': inputs['q'],
     >>>             'answer': inputs['a1'] + inputs['a2'],
@@ -526,8 +537,123 @@ def process_belle_knowledge_enhanced_data_set(answer_less_words: int=15, group_c
 
         read_and_write_template(file, save_file, process_function)
 
+def process_zh_wiki_data_to_datset(groups_cnt: int=10000, max_len: int=512, seed: int=23333) -> None:
+    '''
+    将Wiki中文数转换为问答数据集
+    wiki 下载地址：https://dumps.wikimedia.org/zhwiki/
+    将下载的bz2文件转换为wiki.txt参考：https://github.com/apertium/WikiExtractor
+    '''
+    raw_zh_wiki_file = ROOT_PATH + 'data/raw_data/wiki.txt'
+    zhwiki_simple_file = ROOT_PATH + 'data/my_data/wiki_zh_simple.parquet'
 
-def merge_dataset_as_single_file(groups_cnt: int=10000, max_len: int=512) -> None:
+    # 删除已经存在的数据
+    if exists(zhwiki_simple_file): remove(zhwiki_simple_file)
+
+    # 将繁体转换为简体
+    cc = OpenCC('t2s')
+    all_cnt, keep_cnt = 0, 0
+    
+    # 构造问题的前缀
+    question_prefix = [
+        '什么是{}？',
+        '介绍一下{}',
+        '介绍一下什么是{}',
+        '写一篇关于{}的介绍',
+        '{}是什么？',
+        '你知道{}吗？',
+        '生成关于{}的介绍',
+        '我想知道关于{}的详细信息',
+        '你了解{}吗？',
+        '请解释一下{}',
+        '对于{}，你有什么了解或看法的吗？',
+        '请告诉我关于{}的信息',
+        '请简要描述一下{}',
+        '请提供有关{}的一些详细信息',
+        '能否解释一下{}是什么?',
+        '请分享一些关于{}的背景知识',
+        '请简要概括一下{}',
+        '能给我一些关于{}的背景资料吗?',
+        '有关{}的信息可以分享一下吗？',
+        '你能告诉我{}是什么吗？',
+    ]
+
+    def procees_line(line: str) -> str:
+        '''
+        处理一行文本
+        '''
+        # 将繁体转换为简体
+        line = cc.convert(line)
+
+        line = re.sub(r"\「|\」|\｢|\｣|\『|\』", '\"', line)  # 将「」｢｣『』这些符号替换成引号
+        line = re.sub(r"\，\）|\；\）", '）', line)  # 罗德·法尼(Rod Dodji Fanni，）
+        line = re.sub(r"\（\，|\(\，", '（', line)  # 阿魯拉·基馬(Alula Girma (，
+        
+        line = convert_en_punctuation_to_zh_punct(line) # 英文标点转换为中文标点
+        line = remove_duplicate_punctuation(line)  # 删除中文空括号和重复的标点
+
+        return line
+        
+    np.random.seed(seed)
+    choice =np.random.choice
+    with progress.open(raw_zh_wiki_file, 'r', encoding='utf-8') as read_file:
+        question = '' 
+        answer = '' 
+        pre_line_len = 0
+        cur_rows = []
+        append = cur_rows.append
+        for line in read_file:
+            all_cnt += 1
+
+            # question已经保存，但是仍有多余的行，这些行使得answer的长度＞max_len，故跳过，不处理
+            if len(question) == 0 and pre_line_len > 0:
+                pre_line_len = len(line.strip())
+                continue
+            
+            # 清洗一行
+            line = procees_line(line)
+            
+
+            # 确定问题，pre_line_len是0，既是上一行是空行，则当前行是新的百科词条，设置为question
+            if question == '' and line.endswith('：') and pre_line_len == 0:
+                question = choice(question_prefix).format(line[0: -1])
+                continue
+
+            pre_line_len = len(line.strip())
+
+            # 问题下来若干行为答案
+            if question != '' and not line.endswith('：'):
+                # 其实，pre_line_len已经是len(line.strip())了，如果len(line.strip())=0，既是当前行是0，则不管答案长度够不够，都需要保存了
+                if len(answer) + len(line) <= max_len and pre_line_len != 0: 
+                    answer += line
+                elif len(answer) + len(line) > max_len or pre_line_len == 0:
+                    # 长度超了或者当前的百科已经结束，保存一条样例
+                    keep_cnt += 1
+                    append({'question': question, 'answer': answer})
+                    question = ''
+                    answer = ''
+
+            # =groups_cnt保存到文件
+            if len(cur_rows) >= groups_cnt:
+                df = pd.DataFrame(cur_rows)
+                write_single_parquet_file(zhwiki_simple_file, df)
+                cur_rows = []
+                append = cur_rows.append
+
+        # end for
+        if len(question) > 0 and len(answer) > 0:
+            keep_cnt += 1
+            append({'question': question, 'answer': answer})
+
+        if len(cur_rows) > 0:
+            df = pd.DataFrame(cur_rows)
+            write_single_parquet_file(zhwiki_simple_file, df)
+            cur_rows = []
+
+    log.info("merge into file: {}, 全部数据共{}行，清洗后剩余{}行".format(zhwiki_simple_file, all_cnt, keep_cnt))
+
+
+
+def merge_dataset_as_single_file(groups_cnt: int=10000, max_len: int=512, cut_max_len :bool=True) -> None:
     '''
     将多个数据集合并为一个数据集
     '''
@@ -552,7 +678,9 @@ def merge_dataset_as_single_file(groups_cnt: int=10000, max_len: int=512) -> Non
                     all_cnt += 1
 
                     if len(question) > max_len or len(answer) > max_len:
-                        continue
+                        if not cut_max_len: continue
+                        question = question[0: max_len]
+                        answer = answer[0: max_len]
 
                     keep_cnt += 1
                     append({'question': question , 'answer': answer})
@@ -661,7 +789,7 @@ def count_my_parquet_data(parquet_file: str=None) -> None:
     console.print(table)    
 
 
-def split_train_valid_test_datasets(seed: int=23333, train_ratio: float=0.85, test_ratio: float=0.10, valid_ratio: float=0.05, groups_cnt: int=10000) -> None:
+def split_train_valid_test_datasets(max_len: int=320, seed: int=23333, train_ratio: float=0.90, test_ratio: float=0.08, valid_ratio: float=0.02, groups_cnt: int=10000) -> None:
     '''
     将原始数据拆分为训练集、测试集和验证集
     '''
@@ -687,7 +815,7 @@ def split_train_valid_test_datasets(seed: int=23333, train_ratio: float=0.85, te
             for question, answer in zip(rows['question'], rows['answer']):
                 rand = np.random.random()
 
-                cur_data = {'question': question , 'answer': answer}
+                cur_data = {'question': question[0: max_len] , 'answer': answer[0: max_len]}
 
                 if 0 <= rand < train_ratio:
                     train.append(cur_data)
@@ -746,19 +874,22 @@ if __name__ == '__main__':
     # 6.
     # process_belle_knowledge_enhanced_data_set(answer_less_words=15)
 
+    # 7.
+    # process_zh_wiki_data_to_datset(groups_cnt=10000, max_len=512)
+
 
     # merge
-    # merge_dataset_as_single_file(groups_cnt=10000, max_len=512)
+    # merge_dataset_as_single_file(groups_cnt=10000, max_len=512, cut_max_len=True)
 
-    # shuffle
+    # # shuffle
     # shuffle_parquet_dataset(
     #     parquet_file=ROOT_PATH + 'data/my_dataset.parquet', 
     #     shuffle_file=ROOT_PATH + 'data/my_dataset.shuffle.parquet',  
     #     seed=23333
     # )
 
-    # split train validated ans test
-    # split_train_valid_test_datasets()
+    # # split train validated and test
+    # split_train_valid_test_datasets(max_len=320)
 
     # count_my_parquet_data(ROOT_PATH + 'data/my_dataset.parquet')
     count_my_parquet_data(ROOT_PATH + 'data/')
