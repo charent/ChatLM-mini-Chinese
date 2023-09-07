@@ -24,6 +24,19 @@ punctuation = set("!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~.,;《》？！“”‘’@
 en_punctuation = ",().!;:"
 zh_punctuation = "，（）。！；："
 
+def delete_file(file: str)-> bool:
+    '''
+    询问删除文件
+    '''
+    if exists(file):
+        ans = input('delete file: {} ? Yes (y) or No (n)'.format(file))
+        ans = ans.lower()
+        if ans in ('yes', 'y'):
+            remove(file)
+            print('deleted.')
+            return True
+    return False
+
 def remove_duplicate_punctuation(sentence: str) -> str:
     '''
     删除句子中重复的标点符号、重复的空格，同时将换行变为特殊字符'\n'
@@ -185,7 +198,8 @@ def process_web_text(keep_start: int=5, answer_less_word: int=10) -> None:
         write_file = ROOT_PATH + save_file_names[i]
         
         # 后续append写入，存在文件先删除
-        if exists(write_file): remove(write_file)
+        if exists(write_file): 
+            assert delete_file(write_file)
 
         read_and_write_template(read_file, write_file, process_function)
                 
@@ -247,7 +261,8 @@ def process_bake_qa(answer_less_word: int=15) -> None:
         write_file = ROOT_PATH + save_file_names[i]
         
         # 后续append写入，存在文件先删除
-        if exists(write_file): remove(write_file)
+        if exists(write_file): 
+            assert delete_file(write_file)
 
         read_and_write_template(read_file, write_file, process_function)
 
@@ -356,7 +371,8 @@ def process_chinese_medical_datasets(answer_less_word: int=15) -> None:
         write_file = save_files[i]
         
         # 后续append写入，存在文件先删除
-        if exists(write_file): remove(write_file)
+        if exists(write_file): 
+            assert delete_file(write_file)
 
         read_and_write_template(read_file, write_file, process_function)
 
@@ -417,7 +433,8 @@ def process_finace_dataset(question_less_word: int=10, answer_less_word: int=15)
     write_file = ROOT_PATH + 'data/my_data/' + read_file.split('/')[-1][0: -(len(suffix))] + '.parquet'
 
     # 后续append写入，存在文件先删除
-    if exists(write_file): remove(write_file)
+    if exists(write_file): 
+        assert delete_file(write_file)
 
     read_and_write_template(read_file, write_file, process_function)
 
@@ -452,7 +469,8 @@ def process_zhihu_kol_dataset(question_less_word: int=4, answer_less_word: int=1
     save_file = ROOT_PATH + 'data/my_data/zhihu_kol.parquet'
     
     # 后续append写入，存在文件先删除
-    if exists(save_file): remove(save_file)
+    if exists(save_file): 
+        assert delete_file(save_file)
 
     all_cnt, keep_cnt = 0, 0
     cur_rows = []
@@ -506,7 +524,8 @@ def process_belle_knowledge_enhanced_data_set(answer_less_words: int=15, group_c
     save_file = ROOT_PATH + 'data/my_data/my_belll_3M_cn.parquet'
 
     # 后续append写入，存在文件先删除
-    if exists(save_file): remove(save_file)
+    if exists(save_file): 
+        assert delete_file(save_file)
 
     def process_function(line: str) -> dict:
         '''
@@ -537,6 +556,53 @@ def process_belle_knowledge_enhanced_data_set(answer_less_words: int=15, group_c
 
         read_and_write_template(file, save_file, process_function)
 
+def convert_wiki_to_simple_zh(buffer_size: int=10000) -> None:
+    '''
+    将繁体wiki转换为简体Wiki
+    '''
+    raw_zh_wiki_file = ROOT_PATH + 'data/raw_data/wiki.txt'
+    save_zh_wiki_simple_file = ROOT_PATH + 'data/raw_data/wiki.simple.txt' 
+
+    if exists(save_zh_wiki_simple_file): 
+        assert delete_file(save_zh_wiki_simple_file)
+
+    cc = OpenCC('t2s')
+    cur_rows = []
+    append = cur_rows.append
+    def procees_line(line: str) -> str:
+        '''
+        处理一行文本
+        '''
+        # 将繁体转换为简体
+        line = cc.convert(line)
+
+        line = re.sub(r"\「|\」|\｢|\｣|\『|\』", '\"', line)  # 将「」｢｣『』这些符号替换成引号
+        line = re.sub(r"\，\）|\；\）", '）', line)  # 罗德·法尼(Rod Dodji Fanni，）
+        line = re.sub(r"\（\，|\(\，", '（', line)  # 阿魯拉·基馬(Alula Girma (，
+        
+        line = convert_en_punctuation_to_zh_punct(line) # 英文标点转换为中文标点
+        line = remove_duplicate_punctuation(line)  # 删除中文空括号和重复的标点
+
+        return line
+    with progress.open(raw_zh_wiki_file, 'r', encoding='utf-8') as read_f:
+        with open(save_zh_wiki_simple_file, 'a', encoding='utf-8') as write_f:
+            for line in read_f:
+                line = procees_line(line)
+                if len(line.strip()) == 0: continue
+
+                line = '{}\n'.format(line)
+                append(line)
+
+                if len(cur_rows) >= buffer_size:
+                    write_f.writelines(cur_rows)
+                    cur_rows = []
+                    append = cur_rows.append
+            
+            if len(cur_rows) > 0:
+                write_f.writelines(cur_rows)
+                cur_rows = []
+        
+
 def process_zh_wiki_data_to_datset(groups_cnt: int=10000, max_len: int=512, seed: int=23333) -> None:
     '''
     将Wiki中文数转换为问答数据集
@@ -547,7 +613,8 @@ def process_zh_wiki_data_to_datset(groups_cnt: int=10000, max_len: int=512, seed
     zhwiki_simple_file = ROOT_PATH + 'data/my_data/wiki_zh_simple.parquet'
 
     # 删除已经存在的数据
-    if exists(zhwiki_simple_file): remove(zhwiki_simple_file)
+    if exists(zhwiki_simple_file): 
+        assert delete_file(zhwiki_simple_file)
 
     # 将繁体转换为简体
     cc = OpenCC('t2s')
@@ -594,7 +661,8 @@ def process_zh_wiki_data_to_datset(groups_cnt: int=10000, max_len: int=512, seed
         return line
         
     np.random.seed(seed)
-    choice =np.random.choice
+    choice = np.random.choice
+
     with progress.open(raw_zh_wiki_file, 'r', encoding='utf-8') as read_file:
         question = '' 
         answer = '' 
@@ -653,7 +721,7 @@ def process_zh_wiki_data_to_datset(groups_cnt: int=10000, max_len: int=512, seed
 
 
 
-def merge_dataset_as_single_file(groups_cnt: int=10000, max_len: int=512, cut_max_len :bool=True) -> None:
+def merge_dataset_as_single_file(groups_cnt: int=50000, max_len: int=512, cut_max_len: bool=False) -> None:
     '''
     将多个数据集合并为一个数据集
     '''
@@ -662,7 +730,8 @@ def merge_dataset_as_single_file(groups_cnt: int=10000, max_len: int=512, cut_ma
     save_file = ROOT_PATH + 'data/my_dataset.parquet'
 
     # 后续append写入，存在文件先删除
-    if exists(save_file): remove(save_file)
+    if exists(save_file): 
+        assert delete_file(save_file)
 
     cur_rows = []
     append = cur_rows.append
@@ -677,8 +746,7 @@ def merge_dataset_as_single_file(groups_cnt: int=10000, max_len: int=512, cut_ma
                 for question, answer in zip(rows['question'], rows['answer']):
                     all_cnt += 1
 
-                    if len(question) > max_len or len(answer) > max_len:
-                        if not cut_max_len: continue
+                    if cut_max_len and (len(question) > max_len or len(answer) > max_len):
                         question = question[0: max_len]
                         answer = answer[0: max_len]
 
@@ -711,7 +779,8 @@ def shuffle_parquet_dataset(parquet_file: str, shuffle_file: str, seed: int=2333
     df = pf.to_pandas()
     df = df.sample(frac=1.0, replace=False, random_state=seed, axis=0)
     
-    if exists(shuffle_file): remove(shuffle_file)
+    if exists(shuffle_file): 
+        assert delete_file(shuffle_file)
     
     write_single_parquet_file(shuffle_file, df)
 
@@ -801,9 +870,9 @@ def split_train_valid_test_datasets(max_len: int=320, seed: int=23333, train_rat
     test_parquet_file = ROOT_PATH + 'data/my_test_datatset.parquet'
     valid_parquet_file = ROOT_PATH + 'data/my_valid_datatset.parquet'
 
-    if exists(train_parquet_file): remove(train_parquet_file)
-    if exists(test_parquet_file): remove(test_parquet_file)
-    if exists(valid_parquet_file): remove(valid_parquet_file)
+    if exists(train_parquet_file): assert delete_file(train_parquet_file)
+    if exists(test_parquet_file): assert delete_file(test_parquet_file)
+    if exists(valid_parquet_file): assert delete_file(valid_parquet_file)
 
     np.random.seed(seed)
 
@@ -849,6 +918,36 @@ def split_train_valid_test_datasets(max_len: int=320, seed: int=23333, train_rat
         write_single_parquet_file(valid_parquet_file, pd.DataFrame(valid))
         valid = []
 
+def parquet_to_text(sep='[SEP]', buffer_size: int=50000) -> None:
+    '''
+    将parquet文件转换为txt预料，句子之间用sep隔开
+    txt文件用于训练tokenizer，使用huggingface的BPE训练会导致OOM
+    '''
+    parquet_file = ROOT_PATH + 'data/my_dataset.parquet'
+    txt_file = ROOT_PATH + 'data/my_corpus.txt'
+
+    if exists(txt_file): 
+        assert delete_file(txt_file)
+
+    source_pf = ParquetFile(parquet_file)
+    cur_rows = []
+    append = cur_rows.append
+    with open(txt_file, 'a', encoding='utf-8') as f_write:
+        for pf_chunk in progress.track(source_pf):
+            for rows in pf_chunk.iter_row_groups():
+                for question, answer in zip(rows['question'], rows['answer']):
+                    append(question + sep + answer + sep + '\n')
+
+                    if len(cur_rows) >= buffer_size:
+                        f_write.writelines(cur_rows)
+                        cur_rows = []
+                        append = cur_rows.append
+                       
+        # end for
+        if len(cur_rows) > 0:
+            f_write.writelines(cur_rows)
+            cur_rows = []
+
 if __name__ == '__main__':
 
     processed_file_dir = ROOT_PATH + '/data/my_data'
@@ -877,9 +976,10 @@ if __name__ == '__main__':
     # 7.
     # process_zh_wiki_data_to_datset(groups_cnt=10000, max_len=512)
 
+    # convert_wiki_to_simple_zh()
 
     # merge
-    # merge_dataset_as_single_file(groups_cnt=10000, max_len=512, cut_max_len=True)
+    # merge_dataset_as_single_file(groups_cnt=50000, cut_max_len=False)
 
     # # shuffle
     # shuffle_parquet_dataset(
@@ -889,10 +989,12 @@ if __name__ == '__main__':
     # )
 
     # # split train validated and test
-    # split_train_valid_test_datasets(max_len=320)
+    # split_train_valid_test_datasets(max_len=320, groups_cnt=50000)
+
+    # parquet_to_text()
 
     # count_my_parquet_data(ROOT_PATH + 'data/my_dataset.parquet')
-    count_my_parquet_data(ROOT_PATH + 'data/')
+    # count_my_parquet_data(ROOT_PATH + 'data/')
 
 
     # count_my_json_data()
