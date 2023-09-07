@@ -1,8 +1,12 @@
 colorlog
 orjson
+ujson
 torch
 rich
 tqdm
 fastparquet
 pandas
 numpy
+sentencepiece
+tokenizers
+jieba_fast

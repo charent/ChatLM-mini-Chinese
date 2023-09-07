@@ -10,4 +10,5 @@
 .idea/
 logs/
 data/
+model_save/
 *.pyc
