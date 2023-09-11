@@ -866,9 +866,9 @@ def split_train_valid_test_datasets(max_len: int=320, seed: int=23333, train_rat
 
     source_parquet_file = ROOT_PATH + 'data/my_dataset.parquet'
 
-    train_parquet_file = ROOT_PATH + 'data/my_train_datatset.parquet'
-    test_parquet_file = ROOT_PATH + 'data/my_test_datatset.parquet'
-    valid_parquet_file = ROOT_PATH + 'data/my_valid_datatset.parquet'
+    train_parquet_file = ROOT_PATH + 'data/my_train_dataset.parquet'
+    test_parquet_file = ROOT_PATH + 'data/my_test_dataset.parquet'
+    valid_parquet_file = ROOT_PATH + 'data/my_valid_dataset.parquet'
 
     if exists(train_parquet_file): assert delete_file(train_parquet_file)
     if exists(test_parquet_file): assert delete_file(test_parquet_file)
