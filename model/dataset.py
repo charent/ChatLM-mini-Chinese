@@ -5,6 +5,7 @@ from os.path import dirname, abspath, exists
 from os import remove, mkdir
 from torch.utils.data import DataLoader
 from datasets import load_dataset
+import datasets
 
 ROOT_PATH = abspath(dirname(dirname(__file__)))
 
@@ -26,13 +27,14 @@ class MyDataset(Dataset):
 
         self.tokenizer = Tokenizer.from_file(tokenizer_file)
         self.tokenizer.enable_padding(length=max_len)
+        self.tokenizer.enable_truncation(max_length=max_len)
 
         # 统计__getitem__调用了多少次，当调用次数大于数据集长度length时，返回空数据
         self.get_cnt = 0
     
     def item_generator(self,) -> tuple:
         '''
-        一条数据的生成器，大数据集OOM
+        一条数据的生成器，防止大数据集OOM
         '''
         # 死循环，get_cnt=length时退出
         encode = self.tokenizer.encode
@@ -67,9 +69,12 @@ class MyDataset(Dataset):
 
 class ParquetDataset:
  
-    def __init__(self,  parquet_file: str, tokenizer_file: str, max_len: int=256) -> None:
+    def __init__(self,  parquet_file: str, tokenizer_file: str, buffer_size: int=8192, max_len: int=256, seed: int=23333) -> None:
         '''
-        使用huggingface的loaddataset方法加载
+        使用huggingface的loaddataset方法加载,
+        parquet_file: 单个文件，此时只能使用dataset['train']，
+                多个文件请用:parquet_file={'train': 'train.parquet', 'test': 'test.parquet', 'validation': 'validation.parquet'})
+                其他用法见：https://huggingface.co/docs/datasets/loading
         '''
 
         tokenizer = Tokenizer.from_file(tokenizer_file)
@@ -82,10 +87,13 @@ class ParquetDataset:
         dataset = load_dataset('parquet', data_files=parquet_file, streaming=True) # streaming=True,否则大数据集OOM
 
         # 这里的batch_size不是训练的batch_size，是传递给precess_batch_func的batch_size
-        dataset = dataset.map(self.precess_batch_func, batched=True, batch_size=4096, \
+        dataset = dataset.map(self.precess_batch_func, batched=True, batch_size=buffer_size, \
                               remove_columns=['question', 'answer'],  fn_kwargs={'encode_batch': self.encode_batch})
         
         dataset = dataset.with_format(type="torch")
+
+        # 只能打乱缓冲去内的数据，不能打乱整个数据集，因此可以将缓存区设置稍微大一些
+        dataset = dataset.shuffle(seed=seed, buffer_size=buffer_size)
 
         self.dataset = dataset
     
@@ -101,9 +109,9 @@ class ParquetDataset:
 
         return {'q_ids': q_ids, 'q_mask': q_mask, 'a_ids': a_ids, 'a_mask': a_mask}
     
-    def __getitem__(self, index: str) -> Dataset:
+    def __getitem__(self, index: str) -> datasets.Dataset:
         '''
-        魔术方法，实现dataset['train']、dataset['validation']、dataset['test']
+        魔术方法，实现下标访问，如：dataset['train']、dataset['validation']、dataset['test']
         '''
         return self.dataset[index]
 
@@ -120,11 +128,13 @@ if __name__ == '__main__':
     #     print(x, x_mask, y, y_mask)
     #     break
 
+    # example 2:
     dataset = ParquetDataset(parquet_file, tokenizer_file, max_len=16)
     dataloader = DataLoader(dataset['train'], batch_size=16)
     for batch in dataloader:
         x, x_mask, y, y_mask = batch['q_ids'], batch['q_mask'], batch['a_ids'], batch['a_mask']
-        print(x.shape, x_mask.shape, y.shape, y_mask.shape)
+        # print(x.shape, x_mask.shape, y.shape, y_mask.shape)
+
         break
  
         
