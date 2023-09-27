@@ -4,7 +4,6 @@ import sentencepiece as spm
 from fastparquet import ParquetFile
 from tokenizers import Tokenizer
 from tokenizers.models import BPE
-from tokenizers.pre_tokenizers import Whitespace
 from tokenizers.trainers import BpeTrainer
 from rich import progress
 import ujson
@@ -17,7 +16,6 @@ import pandas as pd
 import os 
 import time
 from collections import defaultdict
-
 
 class MyManager(BaseManager):
     '''
@@ -52,7 +50,7 @@ def train_my_huggingface_tokenizer() -> None:
     # tokenizer.pre_tokenizer = Whitespace()
 
     trainer = BpeTrainer(vocab_size=40960, min_frequency=10000, show_progress=True, \
-                         special_tokens=["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"])
+                         special_tokens=["[PAD]", "[CLS]","[SEP]", "[MASK]", "[UNK]"])
     tokenizer.train_from_iterator(get_training_corpus(), trainer=trainer)
 
     tokenizer.save(tokenizer_save_path)
@@ -90,7 +88,7 @@ def train_my_huggingface_wiki_tokenizer(max_train_line: int=1000000) -> None:
     # tokenizer.pre_tokenizer = Whitespace()
 
     trainer = BpeTrainer(vocab_size=40960, min_frequency=1000, show_progress=True, \
-                         special_tokens=["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"])
+                         special_tokens=["[PAD]", "[CLS]","[SEP]", "[MASK]", "[UNK]"])
     tokenizer.train_from_iterator(get_training_corpus(), trainer=trainer)
 
     tokenizer.save(tokenizer_save_path)
@@ -100,7 +98,7 @@ def train_my_BPE_tokenizer() -> None:
     使用sentencepiece训练BPE，缺点只能加载300万行，16G内存会OOM
     '''
     txt_corpus_file = ROOT_PATH + '/data/my_corpus.txt'
-    special_tokens=["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"]
+    special_tokens = ["[PAD]", "[CLS]","[SEP]", "[MASK]", "[UNK]"]
 
     spm.SentencePieceTrainer.train(
         input=txt_corpus_file, 
@@ -284,7 +282,7 @@ def get_cropus_dict_multi_process()-> None:
         with open(ROOT_PATH + '/model_save/my_vocab.json', 'w', encoding='utf-8') as f:
             ujson.dump({'word_freq': word_freq, 'single_word_freq': single_word_freq}, f,  indent=4, ensure_ascii=False)
 
-def merge_cropus_dict(word_min_freq: int=1500, char_min_freq: int=1000) -> None:
+def merge_cropus_dict(word_min_freq: int=2500, char_min_freq: int=1500) -> None:
     '''
     合并字典，剔除词频过低的字词
     '''
@@ -303,9 +301,9 @@ def merge_cropus_dict(word_min_freq: int=1500, char_min_freq: int=1000) -> None:
         if v >= char_min_freq and k not in merged_dict:
             merged_dict[k] = v 
 
-    special_tokens=["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"]
-    for st in special_tokens:
-        merged_dict[st] = word_min_freq * 10
+    # special_tokens = ["[PAD]", "[CLS]","[SEP]", "[MASK]", "[UNK]"]
+    # for st in special_tokens:
+    #     merged_dict[st] = word_min_freq * 10
 
     print('merged dict len: {}'.format(len(merged_dict)))
 
@@ -313,14 +311,65 @@ def merge_cropus_dict(word_min_freq: int=1500, char_min_freq: int=1000) -> None:
         ujson.dump(merged_dict, f,  indent=4, ensure_ascii=False)
 
 
+def change_cropus_dict_to_tokenize() -> None:
+    '''
+    将结巴分词对所有数据集进行分词后统计词频的数据转换未huggingface的tokenizer
+    为什么这样做？
+        因为各个领域的预料数量不平衡，使用spm or tokenizer.model训练出来的切词效果较差，不具有普适性，如、“贷款，”、“单曲《”，“、赵”，
+    '''
+    cropus_dict_file = ROOT_PATH + '/model_save/my_vocab_merged.dict.json'
+    cropus_dict = dict()
+    with open(cropus_dict_file, 'r', encoding='utf-8') as f:
+        cropus_dict = ujson.load(f)
+
+    print('cropus_dict size: {}'.format(len(cropus_dict)))
+
+    special_tokens = ["[PAD]", "[CLS]","[SEP]", "[MASK]", "[UNK]"]
+
+    # 给每个字编号
+    words_dict = dict()
+    idx = 0
+    for token in special_tokens:
+        words_dict[token] = idx 
+        idx += 1
+    
+    for word in cropus_dict.keys():
+        if word not in words_dict:
+            words_dict[word] = idx 
+            idx += 1
+
+    # 构造merge数组
+    words_merge_list = []
+    for word in words_dict.keys():
+        n = len(word)
+        if n >= 2:
+            # a, b切分12345示例： 1 2345,  12 345,   123 45,   1234 5
+            for i in range(1, n):
+                a, b = ''.join(word[0: i]), ''.join(word[i: ])
+
+                if a in words_dict and b in words_dict:
+                    words_merge_list.append((a, b))
+
+    print('total word vcoab size: {}'.format(len(words_dict)))
+
+    # 转换为huggingface的tokenizer
+    model = BPE(vocab=words_dict, merges=words_merge_list, unk_token='[UNK]')
+    tokenizer = Tokenizer(model)
+    tokenizer.add_special_tokens(["[PAD]", "[CLS]","[SEP]", "[MASK]", "[UNK]"])
+        
+    tokenizer.save(ROOT_PATH + '/model_save/my_merged_tokenizer.json')
+
+
 if __name__ == '__main__':
     # train_my_huggingface_tokenizer()
 
-    train_my_huggingface_wiki_tokenizer()
+    # train_my_huggingface_wiki_tokenizer()
 
     # train_my_BPE_tokenizer()
     # get_corpus_dict()
     # get_cropus_dict_multi_process()
 
-    # merge_cropus_dict()    
+    # merge_cropus_dict() 
+    change_cropus_dict_to_tokenize()   
+
 
