@@ -1,8 +1,7 @@
 from torch.utils.data import Dataset
 from tokenizers import Tokenizer
 from fastparquet import ParquetFile
-from os.path import dirname, abspath, exists
-from os import remove, mkdir
+from os.path import dirname, abspath
 from torch.utils.data import DataLoader
 from datasets import load_dataset
 import datasets

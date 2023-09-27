@@ -2,11 +2,11 @@ from nltk.translate.bleu_score import sentence_bleu
 from collections import Counter
 import numpy as np
 
-def get_bleu4_score(reference: str| list[str], outputs: str| list[str]) -> float:
+def get_bleu4_score(reference: str | list[str], outputs: str | list[str], n_gram: int=4) -> float:
+    '''
+    获取bleu4分数
     '''
     
-    '''
-    n_gram = 4
     weights = np.ones(n_gram) * (1.0 / n_gram)
 
     outputs_len, reference_len = len(outputs), len(reference)
@@ -43,6 +43,9 @@ def get_bleu4_score(reference: str| list[str], outputs: str| list[str]) -> float
     geometric_mean = np.exp(np.sum(log_precision_scores))
     brevity_penalty = np.exp(1 - (reference_len / outputs_len))
 
+    # brevity_penalty = 1.0,   bleu = sentence_bleu([reference], outputs)
+    # brevity_penalty = 1.0
+
     bleu = brevity_penalty * geometric_mean
 
     return bleu
@@ -51,6 +54,8 @@ def get_bleu4_score(reference: str| list[str], outputs: str| list[str]) -> float
 def extract_Ngram(words_list: list[str], n_gram: int) -> tuple:
     '''
     获取一个句子的n_grama
+    return：
+        ngram_counter： key = ('w1  w2 ... wn', n_gram), value: count of key
     '''
     n = len(words_list)
     ngram_counter = Counter()
