@@ -11,5 +11,5 @@
 logs/
 data/
 model_save/*
-!model_save/my_merged_tokenizer.json
+# !model_save/my_merged_tokenizer.json
 *.pyc
