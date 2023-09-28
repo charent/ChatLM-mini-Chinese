@@ -315,7 +315,7 @@ def change_cropus_dict_to_tokenize() -> None:
     '''
     将结巴分词对所有数据集进行分词后统计词频的数据转换未huggingface的tokenizer
     为什么这样做？
-        因为各个领域的预料数量不平衡，使用spm or tokenizer.model训练出来的切词效果较差，不具有普适性，如、“贷款，”、“单曲《”，“、赵”，
+        因为各个领域的语料数量不平衡，使用spm or tokenizer.model训练出来的切词效果较差，不具有普适性，如、“贷款，”、“单曲《”，“、赵”，
     '''
     cropus_dict_file = ROOT_PATH + '/model_save/my_vocab_merged.dict.json'
     cropus_dict = dict()
@@ -324,7 +324,7 @@ def change_cropus_dict_to_tokenize() -> None:
 
     print('cropus_dict size: {}'.format(len(cropus_dict)))
 
-    special_tokens = ["[PAD]", "[CLS]","[SEP]", "[MASK]", "[UNK]"]
+    special_tokens = ["[PAD]", "[CLS]","[SEP]", "[BOS]", "[EOS]", "[MASK]", "[UNK]"]
 
     # 给每个字编号
     words_dict = dict()
@@ -355,7 +355,7 @@ def change_cropus_dict_to_tokenize() -> None:
     # 转换为huggingface的tokenizer
     model = BPE(vocab=words_dict, merges=words_merge_list, unk_token='[UNK]')
     tokenizer = Tokenizer(model)
-    tokenizer.add_special_tokens(["[PAD]", "[CLS]","[SEP]", "[MASK]", "[UNK]"])
+    tokenizer.add_special_tokens(special_tokens)
         
     tokenizer.save(ROOT_PATH + '/model_save/my_merged_tokenizer.json')
 
@@ -370,6 +370,7 @@ if __name__ == '__main__':
     # get_cropus_dict_multi_process()
 
     # merge_cropus_dict() 
-    change_cropus_dict_to_tokenize()   
+    # change_cropus_dict_to_tokenize()   
+    pass
 
 

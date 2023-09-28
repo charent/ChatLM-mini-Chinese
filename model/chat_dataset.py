@@ -116,7 +116,7 @@ class ParquetDataset:
 
 if __name__ == '__main__':
     parquet_file = ROOT_PATH + '/data/my_test_dataset.parquet'
-    tokenizer_file = ROOT_PATH + '/model_save/my_tokenizer.250w.20480token.json'
+    tokenizer_file = ROOT_PATH + '/model_save/my_merged_tokenizer.json'
 
     # example 1：
     # dataset = MyDataset(parquet_file, tokenizer_file)
