@@ -13,12 +13,10 @@ from fastparquet import ParquetFile, write
 from opencc import OpenCC
 
 from logger import Logger
-
-
+from config import PROJECT_ROOT
 
 log = Logger('data_process', save2file=True, file_name='raw_data_process.log').get_logger()
 
-ROOT_PATH = abspath(dirname(dirname(__file__))) + '/'
 
 punctuation = set("!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~.,;《》？！“”‘’@#￥%…&×（）——+【】{};；●，。&～、|\s:：\n")
 en_punctuation = ",().!;:"
@@ -165,15 +163,15 @@ def process_web_text(keep_start: int=5, answer_less_word: int=10) -> None:
     answer_less_word: 答案至少要有answer_less_word个字
     '''
     file_names = [
-        'data/raw_data/web_text_zh_test.json',
-        'data/raw_data/web_text_zh_train.json',
-        'data/raw_data/web_text_zh_valid.json',
+        '/data/raw_data/web_text_zh_test.json',
+        '/data/raw_data/web_text_zh_train.json',
+        '/data/raw_data/web_text_zh_valid.json',
     ]
 
     save_file_names = [
-        'data/my_data/my_web_text_zh_test.parquet',
-        'data/my_data/my_web_text_zh_train.parquet',
-        'data/my_data/my_web_text_zh_valid.parquet',
+        '/data/my_data/my_web_text_zh_test.parquet',
+        '/data/my_data/my_web_text_zh_train.parquet',
+        '/data/my_data/my_web_text_zh_valid.parquet',
     ]
 
     def process_function(line: str) -> dict:
@@ -194,8 +192,8 @@ def process_web_text(keep_start: int=5, answer_less_word: int=10) -> None:
         return write_dict
 
     for i, file_name in enumerate(file_names):
-        read_file = ROOT_PATH + file_name
-        write_file = ROOT_PATH + save_file_names[i]
+        read_file = PROJECT_ROOT + file_name
+        write_file = PROJECT_ROOT + save_file_names[i]
         
         # 后续append写入，存在文件先删除
         if exists(write_file): 
@@ -211,13 +209,13 @@ def process_bake_qa(answer_less_word: int=15) -> None:
 
     '''
     file_names = [
-        'data/raw_data/baike_qa_train.json',
-        'data/raw_data/baike_qa_valid.json',
+        '/data/raw_data/baike_qa_train.json',
+        '/data/raw_data/baike_qa_valid.json',
     ]
 
     save_file_names = [
-        'data/my_data/my_baike_qa_train.parquet',
-        'data/my_data/my_baike_qa_valid.parquet',
+        '/data/my_data/my_baike_qa_train.parquet',
+        '/data/my_data/my_baike_qa_valid.parquet',
     ]
 
     def process_function(line: str) -> dict:
@@ -257,8 +255,8 @@ def process_bake_qa(answer_less_word: int=15) -> None:
         return write_dict
 
     for i, file_name in enumerate(file_names):
-        read_file = ROOT_PATH + file_name
-        write_file = ROOT_PATH + save_file_names[i]
+        read_file = PROJECT_ROOT + file_name
+        write_file = PROJECT_ROOT + save_file_names[i]
         
         # 后续append写入，存在文件先删除
         if exists(write_file): 
@@ -301,7 +299,7 @@ def process_chinese_medical_datasets(answer_less_word: int=15) -> None:
     '''
     处理中国医药领域问答数据集
     '''
-    raw_dataset_dir = ROOT_PATH + 'data/raw_data/chinese_medical_dialogue_datasets'
+    raw_dataset_dir = PROJECT_ROOT + '/data/raw_data/chinese_medical_dialogue_datasets'
     
     raw_data_files = get_path_of_suffix_files(raw_dataset_dir, '.csv')
 
@@ -323,7 +321,7 @@ def process_chinese_medical_datasets(answer_less_word: int=15) -> None:
     save_files = []
     for file_name in raw_data_files:
         file_name = file_name.split('/')[-1][0: -(len(suffix))] + '.parquet'
-        file_name = ROOT_PATH  + 'data/my_data/' + file_name
+        file_name = PROJECT_ROOT  + '/data/my_data/' + file_name
         save_files.append(file_name)
     
     def process_function(line: str) -> dict:
@@ -381,7 +379,7 @@ def process_finace_dataset(question_less_word: int=10, answer_less_word: int=15)
     '''
     处理金融问答数据集
     '''
-    finace_data_file = ROOT_PATH + 'data/raw_data/financezhidao_filter.csv'
+    finace_data_file = PROJECT_ROOT + '/data/raw_data/financezhidao_filter.csv'
     
     suffix = '.repaired.csv'
     if not exists(finace_data_file[0: -4] + suffix):
@@ -430,7 +428,7 @@ def process_finace_dataset(question_less_word: int=10, answer_less_word: int=15)
 
   
     read_file = finace_data_file[0: -4] + suffix
-    write_file = ROOT_PATH + 'data/my_data/' + read_file.split('/')[-1][0: -(len(suffix))] + '.parquet'
+    write_file = PROJECT_ROOT + '/data/my_data/' + read_file.split('/')[-1][0: -(len(suffix))] + '.parquet'
 
     # 后续append写入，存在文件先删除
     if exists(write_file): 
@@ -466,7 +464,7 @@ def process_zhihu_kol_dataset(question_less_word: int=4, answer_less_word: int=1
         return sentence
 
     # row keys :['INSTRUCTION', 'RESPONSE', 'SOURCE', 'METADATA']
-    save_file = ROOT_PATH + 'data/my_data/zhihu_kol.parquet'
+    save_file = PROJECT_ROOT + '/data/my_data/zhihu_kol.parquet'
     
     # 后续append写入，存在文件先删除
     if exists(save_file): 
@@ -521,7 +519,7 @@ def process_belle_knowledge_enhanced_data_set(answer_less_words: int=15, group_c
         'data/raw_data/bell_open_source/Belle_open_source_1M.json',
     ]
 
-    save_file = ROOT_PATH + 'data/my_data/my_belll_3M_cn.parquet'
+    save_file = PROJECT_ROOT + '/data/my_data/my_belll_3M_cn.parquet'
 
     # 后续append写入，存在文件先删除
     if exists(save_file): 
@@ -552,7 +550,7 @@ def process_belle_knowledge_enhanced_data_set(answer_less_words: int=15, group_c
         return write_dict
 
     for file in file_names:
-        file = ROOT_PATH + file
+        file = PROJECT_ROOT + file
 
         read_and_write_template(file, save_file, process_function)
 
@@ -560,8 +558,8 @@ def convert_wiki_to_simple_zh(buffer_size: int=10000) -> None:
     '''
     将繁体wiki转换为简体Wiki
     '''
-    raw_zh_wiki_file = ROOT_PATH + 'data/raw_data/wiki.txt'
-    save_zh_wiki_simple_file = ROOT_PATH + 'data/raw_data/wiki.simple.txt' 
+    raw_zh_wiki_file = PROJECT_ROOT + '/data/raw_data/wiki.txt'
+    save_zh_wiki_simple_file = PROJECT_ROOT + '/data/raw_data/wiki.simple.txt' 
 
     if exists(save_zh_wiki_simple_file): 
         assert delete_file(save_zh_wiki_simple_file)
@@ -609,8 +607,8 @@ def process_zh_wiki_data_to_datset(groups_cnt: int=10000, max_len: int=512, seed
     wiki 下载地址：https://dumps.wikimedia.org/zhwiki/
     将下载的bz2文件转换为wiki.txt参考：https://github.com/apertium/WikiExtractor
     '''
-    raw_zh_wiki_file = ROOT_PATH + 'data/raw_data/wiki.txt'
-    zhwiki_simple_file = ROOT_PATH + 'data/my_data/wiki_zh_simple.parquet'
+    raw_zh_wiki_file = PROJECT_ROOT + '/data/raw_data/wiki.txt'
+    zhwiki_simple_file = PROJECT_ROOT + '/data/my_data/wiki_zh_simple.parquet'
 
     # 删除已经存在的数据
     if exists(zhwiki_simple_file): 
@@ -725,9 +723,9 @@ def merge_dataset_as_single_file(groups_cnt: int=50000, max_len: int=512, cut_ma
     '''
     将多个数据集合并为一个数据集
     '''
-    from_parquet_files = get_path_of_suffix_files(ROOT_PATH + 'data/my_data', '.parquet')
+    from_parquet_files = get_path_of_suffix_files(PROJECT_ROOT + '/data/my_data', '.parquet')
 
-    save_file = ROOT_PATH + 'data/my_dataset.parquet'
+    save_file = PROJECT_ROOT + '/data/my_dataset.parquet'
 
     # 后续append写入，存在文件先删除
     if exists(save_file): 
@@ -788,7 +786,7 @@ def count_my_json_data() -> None:
     '''
     统计目前的所有数据集数据量
     '''
-    my_data_files = get_path_of_suffix_files(ROOT_PATH + 'data/my_data', '.json')
+    my_data_files = get_path_of_suffix_files(PROJECT_ROOT + '/data/my_data', '.json')
     result = [['file_name', 'count']]
     all_cnt = 0
     for file in my_data_files:
@@ -823,7 +821,7 @@ def count_my_parquet_data(parquet_file: str=None) -> None:
     my_data_files = []
 
     if not parquet_file:
-        my_data_files = get_path_of_suffix_files(ROOT_PATH + 'data/my_data', '.parquet')
+        my_data_files = get_path_of_suffix_files(PROJECT_ROOT + '/data/my_data', '.parquet')
     elif isdir(parquet_file):
         my_data_files = get_path_of_suffix_files(parquet_file, '.parquet')
     elif parquet_file.endswith('.parquet'):
@@ -864,11 +862,11 @@ def split_train_valid_test_datasets(max_len: int=320, seed: int=23333, train_rat
     '''
     assert train_ratio + test_ratio + valid_ratio == 1.0
 
-    source_parquet_file = ROOT_PATH + 'data/my_dataset.parquet'
+    source_parquet_file = PROJECT_ROOT + '/data/my_dataset.parquet'
 
-    train_parquet_file = ROOT_PATH + 'data/my_train_dataset.parquet'
-    test_parquet_file = ROOT_PATH + 'data/my_test_dataset.parquet'
-    valid_parquet_file = ROOT_PATH + 'data/my_valid_dataset.parquet'
+    train_parquet_file = PROJECT_ROOT + '/data/my_train_dataset.parquet'
+    test_parquet_file = PROJECT_ROOT + '/data/my_test_dataset.parquet'
+    valid_parquet_file = PROJECT_ROOT + '/data/my_valid_dataset.parquet'
 
     if exists(train_parquet_file): assert delete_file(train_parquet_file)
     if exists(test_parquet_file): assert delete_file(test_parquet_file)
@@ -923,8 +921,8 @@ def parquet_to_text(sep='[SEP]', buffer_size: int=50000) -> None:
     将parquet文件转换为txt预料，句子之间用sep隔开
     txt文件用于训练tokenizer，使用huggingface的BPE训练会导致OOM
     '''
-    parquet_file = ROOT_PATH + 'data/my_dataset.parquet'
-    txt_file = ROOT_PATH + 'data/my_corpus.txt'
+    parquet_file = PROJECT_ROOT + '/data/my_dataset.parquet'
+    txt_file = PROJECT_ROOT + '/data/my_corpus.txt'
 
     if exists(txt_file): 
         assert delete_file(txt_file)
@@ -950,7 +948,7 @@ def parquet_to_text(sep='[SEP]', buffer_size: int=50000) -> None:
 
 if __name__ == '__main__':
 
-    processed_file_dir = ROOT_PATH + '/data/my_data'
+    processed_file_dir = PROJECT_ROOT + '/data/my_data'
     if not exists(processed_file_dir):
         mkdir(processed_file_dir)
     
@@ -983,8 +981,8 @@ if __name__ == '__main__':
 
     # # shuffle
     # shuffle_parquet_dataset(
-    #     parquet_file=ROOT_PATH + 'data/my_dataset.parquet', 
-    #     shuffle_file=ROOT_PATH + 'data/my_dataset.shuffle.parquet',  
+    #     parquet_file=PROJECT_ROOT + '/data/my_dataset.parquet', 
+    #     shuffle_file=PROJECT_ROOT + '/data/my_dataset.shuffle.parquet',  
     #     seed=23333
     # )
 
@@ -993,8 +991,8 @@ if __name__ == '__main__':
 
     # parquet_to_text()
 
-    # count_my_parquet_data(ROOT_PATH + 'data/my_dataset.parquet')
-    # count_my_parquet_data(ROOT_PATH + 'data/')
+    # count_my_parquet_data(PROJECT_ROOT + '/data/my_dataset.parquet')
+    # count_my_parquet_data(PROJECT_ROOT + '/data/')
 
 
     # count_my_json_data()

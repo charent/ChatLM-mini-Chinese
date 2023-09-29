@@ -8,8 +8,11 @@
 # Local History for Visual Studio Code
 .history/
 .idea/
-logs/
-data/
+
+*.pyc
+
+logs/*
+data/*
 model_save/*
 # !model_save/my_merged_tokenizer.json
-*.pyc
+

@@ -17,6 +17,8 @@ import os
 import time
 from collections import defaultdict
 
+from config import PROJECT_ROOT
+
 class MyManager(BaseManager):
     '''
     nothing to be done 
@@ -29,15 +31,13 @@ class MyManager(BaseManager):
 
 '''
 
-ROOT_PATH = abspath(dirname(dirname(__file__)))
-
 def train_my_huggingface_tokenizer() -> None:
     '''
     训练tokenizer with huggingface
     '''
 
-    pf = ParquetFile(ROOT_PATH + '/data/my_dataset.parquet')
-    tokenizer_save_path = ROOT_PATH + '/model_save'
+    pf = ParquetFile(PROJECT_ROOT + '/data/my_dataset.parquet')
+    tokenizer_save_path = PROJECT_ROOT + '/model_save'
     if not exists(tokenizer_save_path): mkdir(tokenizer_save_path)
 
     def get_training_corpus():
@@ -60,8 +60,8 @@ def train_my_huggingface_wiki_tokenizer(max_train_line: int=1000000) -> None:
     训练tokenizer with huggingface
     '''
 
-    cropus_file = ROOT_PATH + '/data/raw_data/wiki.simple.txt'
-    tokenizer_save_path = ROOT_PATH + '/model_save/hf_bpe_tokenizer'
+    cropus_file = PROJECT_ROOT + '/data/raw_data/wiki.simple.txt'
+    tokenizer_save_path = PROJECT_ROOT + '/model_save/hf_bpe_tokenizer'
 
     # if not exists(tokenizer_save_path): mkdir(tokenizer_save_path)
 
@@ -97,7 +97,7 @@ def train_my_BPE_tokenizer() -> None:
     '''
     使用sentencepiece训练BPE，缺点只能加载300万行，16G内存会OOM
     '''
-    txt_corpus_file = ROOT_PATH + '/data/my_corpus.txt'
+    txt_corpus_file = PROJECT_ROOT + '/data/my_corpus.txt'
     special_tokens = ["[PAD]", "[CLS]","[SEP]", "[MASK]", "[UNK]"]
 
     spm.SentencePieceTrainer.train(
@@ -116,8 +116,8 @@ def get_corpus_dict() -> None:
     '''
     获取语料的字典
     '''
-    parquet_file = ROOT_PATH + '/data/my_dataset.parquet'
-    save_file = ROOT_PATH + '/data/my_dict.json'
+    parquet_file = PROJECT_ROOT + '/data/my_dataset.parquet'
+    save_file = PROJECT_ROOT + '/data/my_dict.json'
 
     if exists(save_file): remove(save_file)
 
@@ -258,7 +258,7 @@ def get_cropus_dict_multi_process()-> None:
         word_freq_dict_lock = manager.word_freq_dict_lock()
         single_word_dict_lock = manager.single_word_dict_lock()
 
-        source_pf = ParquetFile(ROOT_PATH + '/data/my_dataset.parquet')
+        source_pf = ParquetFile(PROJECT_ROOT + '/data/my_dataset.parquet')
         
         for pf_chunk in progress.track(source_pf):
             for rows in pf_chunk.iter_row_groups():
@@ -279,14 +279,14 @@ def get_cropus_dict_multi_process()-> None:
         single_word_freq = dict()
         for k,v in single_word_dict.items(): single_word_freq[k] = v
 
-        with open(ROOT_PATH + '/model_save/my_vocab.json', 'w', encoding='utf-8') as f:
+        with open(PROJECT_ROOT + '/model_save/my_vocab.json', 'w', encoding='utf-8') as f:
             ujson.dump({'word_freq': word_freq, 'single_word_freq': single_word_freq}, f,  indent=4, ensure_ascii=False)
 
 def merge_cropus_dict(word_min_freq: int=2500, char_min_freq: int=1500) -> None:
     '''
     合并字典，剔除词频过低的字词
     '''
-    raw_dict_file = ROOT_PATH + '/model_save/my_dict.json'
+    raw_dict_file = PROJECT_ROOT + '/model_save/my_dict.json'
     
     raw_dict = None
     with open(raw_dict_file, 'r', encoding='utf-8') as f:
@@ -307,7 +307,7 @@ def merge_cropus_dict(word_min_freq: int=2500, char_min_freq: int=1500) -> None:
 
     print('merged dict len: {}'.format(len(merged_dict)))
 
-    with open(ROOT_PATH + '/model_save/my_vocab_merged.dict.json', 'w', encoding='utf-8') as f:
+    with open(PROJECT_ROOT + '/model_save/my_vocab_merged.dict.json', 'w', encoding='utf-8') as f:
         ujson.dump(merged_dict, f,  indent=4, ensure_ascii=False)
 
 
@@ -317,7 +317,7 @@ def change_cropus_dict_to_tokenize() -> None:
     为什么这样做？
         因为各个领域的语料数量不平衡，使用spm or tokenizer.model训练出来的切词效果较差，不具有普适性，如、“贷款，”、“单曲《”，“、赵”，
     '''
-    cropus_dict_file = ROOT_PATH + '/model_save/my_vocab_merged.dict.json'
+    cropus_dict_file = PROJECT_ROOT + '/model_save/my_vocab_merged.dict.json'
     cropus_dict = dict()
     with open(cropus_dict_file, 'r', encoding='utf-8') as f:
         cropus_dict = ujson.load(f)
@@ -357,7 +357,7 @@ def change_cropus_dict_to_tokenize() -> None:
     tokenizer = Tokenizer(model)
     tokenizer.add_special_tokens(special_tokens)
         
-    tokenizer.save(ROOT_PATH + '/model_save/my_merged_tokenizer.json')
+    tokenizer.save(PROJECT_ROOT + '/model_save/my_merged_tokenizer.json')
 
 
 if __name__ == '__main__':
