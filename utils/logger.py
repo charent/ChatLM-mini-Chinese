@@ -1,10 +1,14 @@
 import logging
 from os.path import dirname, abspath
+import sys 
 import os
 import colorlog 
 import time
 
-parent_path = abspath(dirname(dirname(__file__)))
+sys.path.append('.')
+sys.path.append('..')
+
+from config import PROJECT_ROOT
 
 # 自定义日志格式
 class Logger(object):
@@ -43,13 +47,13 @@ class Logger(object):
                     
          # 输出到文件
         if save2file:
-            base_dir = parent_path + '/logs' # 获取上级目录的绝对路径
+            base_dir = PROJECT_ROOT + '/logs' # 获取上级目录的绝对路径
             if not os.path.exists(base_dir):
                 os.mkdir(base_dir)
             
             log_file = ''
             if file_name is not None:
-                log_file = base_dir + '/' + file_name
+                log_file = file_name
             else:
                 log_file = base_dir + '/' + logger_name  + '-' + str(time.strftime('%Y%m%d-%H%M%S', time.localtime())) +'.log'
 
