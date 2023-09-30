@@ -4,8 +4,9 @@ import numpy as np
 from torch.utils.data import DataLoader
 import torch 
 from torch import nn 
-
+from rich.progress import Progress, TextColumn, BarColumn, TimeElapsedColumn, TimeRemainingColumn
 from transformers import TrainingArguments, Trainer
+from tokenizers import Tokenizer
 
 # import accelerate
 from accelerate import Accelerator
@@ -20,7 +21,7 @@ from utils.functions import get_bleu4_score
 from utils.logger import Logger
 from model.chat_dataset import ParquetDataset
 from config import PROJECT_ROOT, TrainConfig, T5ModelConfig
-
+from utils.functions import get_bleu4_score
 
 
 def transformers_trainer(config: TrainConfig) -> None:
@@ -47,16 +48,18 @@ class ChatTrainer:
         
         self.train_config = train_config
         self.model_config = model_config
-        self.logger = Logger('chat_trainer', save2file=True, file_name=train_config.trainer_log_file) # file_name=None会自动生成log文件名
+
+        # file_name=None会自动生成log文件名
+        self.logger = Logger('chat_trainer', save2file=True, file_name=train_config.trainer_log_file) 
     
     def train(self, ) -> None:
         '''
         '''
-        logger = self.logger
+        log = self.logger
         train_config = self.train_config
         model_config = self.model_config
 
-        logger.info('loading datasets ...')
+        log.info('loading datasets ...')
         dataset = ParquetDataset(
             parquet_file={
                 'train': train_config.train_file,
@@ -71,9 +74,11 @@ class ChatTrainer:
         train_dataloader = DataLoader(dataset['train'], batch_size=train_config.batch_size)
         valid_dataloader = DataLoader(dataset['validation'], batch_size=train_config.batch_size)
 
+        log.info('train dataset size: {}, validation dataset size {}.'.format(dataset.get_dataset_size('train'), dataset.get_dataset_size('validation')), save_to_file=True)
+
         accelerator = Accelerator(mixed_precision=train_config.mixed_precision)
         device = accelerator.device
-        logger.info('device {} is used!'.format(str(device)))
+        log.info('device {} is used!'.format(str(device)), save_to_file=True)
 
         # T5: All labels set to `-100` are ignored (masked), the loss is only computed for labels in `[0, ..., config.vocab_size]`
         tokenizer = dataset.tokenizer
@@ -98,45 +103,136 @@ class ChatTrainer:
                 valid_dataloader
             )
         
+        steps_per_epoch = np.ceil(dataset.get_dataset_size('train') // train_config.batch_size)
+        eval_steps = np.ceil(dataset.get_dataset_size('validation') // train_config.batch_size)
 
-        for epoch in range(train_config.epochs):
-            model.train()
-            for step, batch_data in enumerate(train_dataloader):
+        best_bleu4 = 0.0
+        best_epoch = 0
+        epoch_loss_sum = 0.0
+        step_loss_sum = 0.0
+
+        with Progress(TextColumn("[progress.description]{task.description}"),
+              BarColumn(),
+              TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+              TimeRemainingColumn(),
+              TimeElapsedColumn(),
+              TextColumn("[bold blue]{task.fields[loss_info]}"),
+             ) as progress:
+            
+            epoch_progress = progress.add_task(description='epoch: ', info='', total=train_config.epochs)
+            steps_progress = progress.add_task(description='bacth: ', info='', total=steps_per_epoch)
+            eval_progress = progress.add_task(description='evaluate: ', info='', total=eval_steps)
+
+            for epoch in range(train_config.epochs):
+                model.train()
+                
+                epoch_show_txt = 'epoch: {}/{}, avg_loss: {:.6f}, best_epoch: {}, best_bleu: {}'.format(
+                    epoch, train_config.epochs, epoch_loss_sum / steps_per_epoch, best_epoch, best_bleu4
+                )
+                progress.update(epoch_progress, info=epoch_show_txt)
+                progress.reset(steps_progress)
+                
+                for step, batch_data in enumerate(train_dataloader):
+
+                    # 更新进度条
+                    step_show_txt = 'step: {}/{}, loss: {:.6f}'.format(step, steps_per_epoch, step_loss_sum // train_config.batch_size)
+                    progress.advance(steps_progress, advance=1)
+                    progress.update(steps_progress, info=step_show_txt)
+
+                    inputs_ids, inputs_mask = batch_data['inputs_ids'], batch_data['inputs_mask']
+                    # target_ids, target_mask = batch_data['target_ids'], batch_data['target_mask']
+                    target_ids = batch_data['target_ids']
+
+                    # for t5 model, all labels set to `-100` are ignored (masked)
+                    target_ids[target_ids == decoder_start_token_id] = -100
+
+                    # print("inputs:{}, mask:{}, target_ids:{}".format(inputs_ids.shape, inputs_mask.shape, target_ids.shape))
+                    
+                    outputs = model(
+                        input_ids=inputs_ids,
+                        input_mask=inputs_mask,
+                        labels=target_ids
+                    )
+
+                    loss = outputs.loss
+
+                    # attention here! loss.backward()
+                    accelerator.backward(loss) 
+                    
+                    optimizer.step()
+                    lr_scheduler.step()
+                    optimizer.zero_grad()
+
+                    break
+                
+                #  end for
+                progress.advance(epoch_progress, advance=1)
+                model.eval()
+                
+                cur_bleu4_score = self.evaluate(
+                    model=model,
+                    tokenizer=tokenizer,
+                    valid_dataloader=valid_dataloader,
+                    accelerator=accelerator,
+                    eval_progress=eval_progress,
+                    progress=progress,
+                    )
+
+                accelerator.wait_for_everyone()
+
+                # save model
+                if cur_bleu4_score >= best_bleu4:
+                    model_dict = accelerator.get_state_dict(model)
+                    accelerator.save(model_dict, train_config.model_file.format(epoch))
+
+    def evaluate(self, 
+                model: TextToTextModel, 
+                tokenizer: Tokenizer,
+                valid_dataloader: DataLoader, 
+                accelerator: Accelerator,
+                eval_progress: Progress,
+                progress: Progress,
+            ) -> float:
+        
+        '''
+        评估，返回平均的bleu分数
+        '''
+        progress.reset(eval_progress)
+        with torch.no_grad():
+            for _, batch_data in enumerate(valid_dataloader):
+                progress.advance(eval_progress, advance=1)
+               
+
                 inputs_ids, inputs_mask = batch_data['inputs_ids'], batch_data['inputs_mask']
-                target_ids, target_mask = batch_data['target_ids'], batch_data['target_mask']
-                
-                # for t5 model, all labels set to `-100` are ignored (masked)
-                target_ids[target_ids == decoder_start_token_id] = -100
+                target_ids = batch_data['target_ids']
 
-                # print("inputs:{}, mask:{}, target_ids:{}".format(inputs_ids.shape, inputs_mask.shape, target_ids.shape))
-                
-                outputs = model(
+                outputs = model.generate(
                     input_ids=inputs_ids,
-                    input_mask=inputs_mask,
-                    labels=target_ids
+                    attention_mask=inputs_mask
                 )
 
-                loss = outputs.loss
 
-                # attention here! loss.backward()
-                accelerator.backward(loss) 
-                
-                optimizer.step()
-                lr_scheduler.step()
-                optimizer.zero_grad()
-                
-                
+            # gather data from multi-gpus (used when in ddp mode)
+            outputs = accelerator.gather_for_metrics(outputs)
+            target_ids = accelerator.gather_for_metrics(target_ids)
+
+            outputs = [tokenizer.decode(g, skip_special_tokens=True) for g in outputs]
+            target = [tokenizer.decode(t, skip_special_tokens=True) for t in target_ids]
+
     
-    def evaluate(self, ) -> None:
-        '''
-        '''
-        pass
+            progress.update(eval_progress, info='')
+
+        
+       
 
     def test(self, ) -> None:
         '''
         '''
         pass
-
+    
+    def print_and_log(self, info: str) -> None:
+        print(info)
+        self.logger.info(info)
 
 if __name__ == '__main__':
     

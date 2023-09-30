@@ -15,7 +15,7 @@ from opencc import OpenCC
 from logger import Logger
 from config import PROJECT_ROOT
 
-log = Logger('data_process', save2file=True, file_name='raw_data_process.log').get_logger()
+log = Logger('data_process', save2file=True, file_name='raw_data_process.log')
 
 
 punctuation = set("!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~.,;《》？！“”‘’@#￥%…&×（）——+【】{};；●，。&～、|\s:：\n")
@@ -110,7 +110,7 @@ def read_and_write_template(read_file: str, write_to_file: str, call_back: objec
     >>>     return my_dict
     '''
 
-    log.info('process file:{}'.format(read_file))
+    log.info('process file:{}'.format(read_file), save_to_file=True)
     start = time.time()
     
     raw_line_cnt = 0
@@ -154,7 +154,7 @@ def read_and_write_template(read_file: str, write_to_file: str, call_back: objec
     end = time.time()
 
     log.info('原始文件:{}，共{}行，处理后剩余{}行，保存到文件：{}。耗时：{:.6}s'\
-                .format(read_file, raw_line_cnt, keep_line_cnt, write_to_file, end - start))
+                .format(read_file, raw_line_cnt, keep_line_cnt, write_to_file, end - start), save_to_file=True)
 
 def process_web_text(keep_start: int=5, answer_less_word: int=10) -> None:
     '''
@@ -475,7 +475,7 @@ def process_zhihu_kol_dataset(question_less_word: int=4, answer_less_word: int=1
     append = cur_rows.append
     for file in file_names:
         pf = ParquetFile(file)
-        log.info('process file: {}'.format(file))
+        log.info('process file: {}'.format(file), save_to_file=True)
 
         for pf_chunk in progress.track(pf): # pf分块
             for rows in pf_chunk.iter_row_groups():
@@ -507,7 +507,7 @@ def process_zhihu_kol_dataset(question_less_word: int=4, answer_less_word: int=1
             write_single_parquet_file(save_file, df)
             cur_rows = []
 
-    log.info('save file to: {}, 全部数据共{}行，清洗后剩余{}行'.format(save_file, all_cnt, keep_cnt))
+    log.info('save file to: {}, 全部数据共{}行，清洗后剩余{}行'.format(save_file, all_cnt, keep_cnt), save_to_file=True)
 
 
 def process_belle_knowledge_enhanced_data_set(answer_less_words: int=15, group_cnt: int=10000) -> None:
@@ -715,7 +715,7 @@ def process_zh_wiki_data_to_datset(groups_cnt: int=10000, max_len: int=512, seed
             write_single_parquet_file(zhwiki_simple_file, df)
             cur_rows = []
 
-    log.info("merge into file: {}, 全部数据共{}行，清洗后剩余{}行".format(zhwiki_simple_file, all_cnt, keep_cnt))
+    log.info("merge into file: {}, 全部数据共{}行，清洗后剩余{}行".format(zhwiki_simple_file, all_cnt, keep_cnt), save_to_file=True)
 
 
 
@@ -763,7 +763,7 @@ def merge_dataset_as_single_file(groups_cnt: int=50000, max_len: int=512, cut_ma
         write_single_parquet_file(save_file, df)
         cur_rows = []
 
-    log.info("merge into file: {}, 全部数据共{}行，清洗后剩余{}行".format(save_file, all_cnt, keep_cnt))
+    log.info("merge into file: {}, 全部数据共{}行，清洗后剩余{}行".format(save_file, all_cnt, keep_cnt), save_to_file=True)
 
 def shuffle_parquet_dataset(parquet_file: str, shuffle_file: str, seed: int=23333) -> None:
     '''
@@ -801,7 +801,7 @@ def count_my_json_data() -> None:
     
     result.append(['汇总', all_cnt])
 
-    log.info(str(result))
+    log.info(str(result), save_to_file=True)
 
     console = Console()
     table = Table(show_header=True, show_lines=True,)
@@ -843,7 +843,7 @@ def count_my_parquet_data(parquet_file: str=None) -> None:
     
     result.append(['汇总', all_cnt])
 
-    log.info(str(result))
+    log.info(str(result), save_to_file=True)
 
     console = Console()
     table = Table(show_header=True, show_lines=True,)
