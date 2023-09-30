@@ -12,20 +12,21 @@ from config import PROJECT_ROOT
 
 # 自定义日志格式
 class Logger(object):
-    def __init__(self,logger_name: str, level=logging.DEBUG, std_out: bool=True, save2file: bool=False, file_name: str=None) ->None:
+    def __init__(self, logger_name: str, level=logging.DEBUG, std_out: bool=True, save2file: bool=False, file_name: str=None) ->None:
         super().__init__()
 
         if std_out == False and save2file == False:
             raise ValueError('args: [std_out, save2file], at less one of them must be True')
 
         # 默认的格式化
-        logfmt = "[%(asctime)s.%(msecs)03d] [%(levelname)s]: %(log_color)s%(message)s"
         datefmt = "%Y-%m-%d %H:%M:%S"
         
         # 输出到控制台
         if std_out:
+            
+            std_logfmt = "[%(asctime)s.%(msecs)03d] [%(levelname)s]: %(log_color)s%(message)s"
 
-            self.stdout_logger = logging.getLogger(logger_name)
+            self.stdout_logger = logging.getLogger('{}_std'.format(logger_name))
             self.stdout_logger.setLevel(level)
 
              # 彩色输出格式化
@@ -37,21 +38,24 @@ class Logger(object):
                 'CRITICAL': 'red'
             }
             formatter = colorlog.ColoredFormatter(
-                        fmt=logfmt,
+                        fmt=std_logfmt,
                         datefmt=datefmt,
                         log_colors=log_colors_config,
                         )
-            ch = logging.StreamHandler()
-            ch.setLevel(level)        
-            ch.setFormatter(formatter)
             
-            self.stdout_logger.addHandler(ch)
+            sh = logging.StreamHandler()
+            sh.setLevel(level)        
+            sh.setFormatter(formatter)
+            
+            self.stdout_logger.addHandler(sh)
        
                     
          # 输出到文件
         if save2file:
 
-            self.file_logger = logging.getLogger(logger_name)
+            file_logfmt = "[%(asctime)s.%(msecs)03d] [%(levelname)s]: %(message)s"
+
+            self.file_logger = logging.getLogger('{}_file'.format(logger_name))
             self.file_logger.setLevel(level)
 
             base_dir = PROJECT_ROOT + '/logs' # 获取上级目录的绝对路径
@@ -67,7 +71,7 @@ class Logger(object):
             fh = logging.FileHandler(filename=log_file, mode='a', encoding='utf-8')
             fh.setLevel(level)
             save_formatter =  logging.Formatter(
-                fmt=logfmt,
+                fmt=file_logfmt,
                 datefmt=datefmt,
                 )
             fh.setFormatter(save_formatter)
@@ -84,7 +88,7 @@ class Logger(object):
             self.stdout_logger.info(message)
         if save_to_file:
             self.file_logger.info(message)
-            
+
     def warnning(self, message: str, std_out: bool=True, save_to_file: bool=False) -> None:
         if std_out:
             self.stdout_logger.info(message)
@@ -98,5 +102,7 @@ class Logger(object):
             self.file_logger.info(message)
 
 if __name__ == "__main__":
-    log = Logger('test', save2file=False)
+    log = Logger('test', std_out=True, save2file=True, file_name='../logs/test.log')
+    # log = Logger('test', save2file=True)
     log.info('test info')
+    log.info('test file log', save_to_file=True)
