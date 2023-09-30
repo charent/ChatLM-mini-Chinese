@@ -97,7 +97,7 @@ class ParquetDataset:
         
         dataset = dataset.with_format(type="torch")
 
-        # 只能打乱缓冲去内的数据，不能打乱整个数据集，因此可以将缓存区设置稍微大一些
+        # 只能打乱缓冲区内的数据，不能打乱整个数据集，因此可以将缓存区设置稍微大一些
         dataset = dataset.shuffle(seed=seed, buffer_size=buffer_size)
 
         self.dataset = dataset
@@ -160,6 +160,9 @@ class ParquetDataset:
         split_name可取：train、validation、test
         '''
         return self.len_dict[split_name]
+    
+    def get_tokenizer(self, ) -> Tokenizer:
+        return self.tokenizer
 
 if __name__ == '__main__':
     parquet_file = PROJECT_ROOT + '/data/my_test_dataset.parquet'

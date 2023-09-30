@@ -12,7 +12,7 @@ class TrainConfig:
     mixed_precision: str = "no" #混合精度 ''no','fp16','bf16 or 'fp8'
 
     tokenizer_file: str = PROJECT_ROOT + '/model_save/my_merged_tokenizer.json'
-    model_file: str= PROJECT_ROOT + '/model_save/chat_small_t5.pth'
+    model_file: str= PROJECT_ROOT + '/model_save/chat_small_t5_{}.pth'
     train_file: str = PROJECT_ROOT + '/data/my_test_dataset.parquet'
     validation_file: str = PROJECT_ROOT + '/data/my_valid_dataset.parquet'
     test_file: str = PROJECT_ROOT + '/data/my_valid_dataset.parquet'

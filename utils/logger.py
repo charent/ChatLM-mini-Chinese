@@ -18,14 +18,16 @@ class Logger(object):
         if std_out == False and save2file == False:
             raise ValueError('args: [std_out, save2file], at less one of them must be True')
 
-        self.logger = logging.getLogger(logger_name)
-        self.logger.setLevel(level)
-
         # 默认的格式化
-        # formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s: %(message)s')
+        logfmt = "[%(asctime)s.%(msecs)03d] [%(levelname)s]: %(log_color)s%(message)s"
+        datefmt = "%Y-%m-%d %H:%M:%S"
         
         # 输出到控制台
         if std_out:
+
+            self.stdout_logger = logging.getLogger(logger_name)
+            self.stdout_logger.setLevel(level)
+
              # 彩色输出格式化
             log_colors_config = {
                 'DEBUG': 'cyan',
@@ -35,18 +37,23 @@ class Logger(object):
                 'CRITICAL': 'red'
             }
             formatter = colorlog.ColoredFormatter(
-                        '[%(asctime)s] [%(levelname)s]： %(log_color)s%(message)s',
-                        log_colors=log_colors_config
+                        fmt=logfmt,
+                        datefmt=datefmt,
+                        log_colors=log_colors_config,
                         )
             ch = logging.StreamHandler()
             ch.setLevel(level)        
             ch.setFormatter(formatter)
             
-            self.logger.addHandler(ch)
+            self.stdout_logger.addHandler(ch)
        
                     
          # 输出到文件
         if save2file:
+
+            self.file_logger = logging.getLogger(logger_name)
+            self.file_logger.setLevel(level)
+
             base_dir = PROJECT_ROOT + '/logs' # 获取上级目录的绝对路径
             if not os.path.exists(base_dir):
                 os.mkdir(base_dir)
@@ -55,29 +62,41 @@ class Logger(object):
             if file_name is not None:
                 log_file = file_name
             else:
-                log_file = base_dir + '/' + logger_name  + '-' + str(time.strftime('%Y%m%d-%H%M%S', time.localtime())) +'.log'
+                log_file = base_dir + '/' + logger_name  + '-' + str(time.strftime('%Y%m%d', time.localtime())) +'.log'
 
             fh = logging.FileHandler(filename=log_file, mode='a', encoding='utf-8')
             fh.setLevel(level)
-            save_formatter =  logging.Formatter('[%(asctime)s] [%(levelname)s]：%(message)s')
+            save_formatter =  logging.Formatter(
+                fmt=logfmt,
+                datefmt=datefmt,
+                )
             fh.setFormatter(save_formatter)
-            self.logger.addHandler(fh)
+            self.file_logger.addHandler(fh)
 
-    def get_logger(self):
-        return self.logger
+    def info(self, message: str, std_out: bool=True, save_to_file: bool=False) -> None:
+        if std_out:
+            self.stdout_logger.info(message)
+        if save_to_file:
+            self.file_logger.info(message)
 
-    def info(self, message: str):
-        self.logger.info(message)
+    def debug(self, message: str, std_out: bool=True, save_to_file: bool=False) -> None:
+        if std_out:
+            self.stdout_logger.info(message)
+        if save_to_file:
+            self.file_logger.info(message)
+            
+    def warnning(self, message: str, std_out: bool=True, save_to_file: bool=False) -> None:
+        if std_out:
+            self.stdout_logger.info(message)
+        if save_to_file:
+            self.file_logger.info(message)
 
-    def debug(self, message: str):
-        self.logger.debug(message)
-
-    def warnning(self, message: str):
-        self.logger.warn(message)
-
-    def error(self, message: str):
-        self.logger.error(message)
+    def error(self, message: str, std_out: bool=True, save_to_file: bool=False) -> None:
+        if std_out:
+            self.stdout_logger.info(message)
+        if save_to_file:
+            self.file_logger.info(message)
 
 if __name__ == "__main__":
-    log = Logger('test', save2file=True).get_logger()
+    log = Logger('test', save2file=False)
     log.info('test info')
