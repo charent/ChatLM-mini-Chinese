@@ -6,7 +6,7 @@ PROJECT_ROOT: str = abspath(dirname(__file__))
 @dataclass
 class TrainConfig:
     epochs: int = 100
-    batch_size: int = 16
+    batch_size: int = 32
     learn_rate: float = 0.001
 
     mixed_precision: str = "no" #混合精度 ''no','fp16','bf16 or 'fp8'
@@ -16,7 +16,7 @@ class TrainConfig:
     train_file: str = PROJECT_ROOT + '/data/my_test_dataset.parquet'
     validation_file: str = PROJECT_ROOT + '/data/my_valid_dataset.parquet'
     test_file: str = PROJECT_ROOT + '/data/my_valid_dataset.parquet'
-    trainer_log_file: str = PROJECT_ROOT + '/logs/trainer.log'
+    # trainer_log_file: str = PROJECT_ROOT + '/logs/trainer.log'
 
     seed: int = 23333
     dataloader_buffer_size: int = 8192

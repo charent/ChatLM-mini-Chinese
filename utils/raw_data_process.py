@@ -15,7 +15,7 @@ from opencc import OpenCC
 from logger import Logger
 from config import PROJECT_ROOT
 
-log = Logger('data_process', save2file=True, file_name='raw_data_process.log')
+log = Logger('data_process', save2file=True, file_name=PROJECT_ROOT + '/logs/raw_data_process.log')
 
 
 punctuation = set("!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~.,;《》？！“”‘’@#￥%…&×（）——+【】{};；●，。&～、|\s:：\n")
@@ -856,13 +856,11 @@ def count_my_parquet_data(parquet_file: str=None) -> None:
     console.print(table)    
 
 
-def split_train_valid_test_datasets(max_len: int=320, seed: int=23333, train_ratio: float=0.90, test_ratio: float=0.08, valid_ratio: float=0.02, groups_cnt: int=10000) -> None:
+def split_train_valid_test_datasets(source_parquet_file: str, max_len: int=320, seed: int=23333, train_ratio: float=0.90, test_ratio: float=0.08, valid_ratio: float=0.02, groups_cnt: int=10000) -> None:
     '''
     将原始数据拆分为训练集、测试集和验证集
     '''
     assert train_ratio + test_ratio + valid_ratio == 1.0
-
-    source_parquet_file = PROJECT_ROOT + '/data/my_dataset.parquet'
 
     train_parquet_file = PROJECT_ROOT + '/data/my_train_dataset.parquet'
     test_parquet_file = PROJECT_ROOT + '/data/my_test_dataset.parquet'
@@ -987,7 +985,11 @@ if __name__ == '__main__':
     # )
 
     # # split train validated and test
-    # split_train_valid_test_datasets(max_len=320, groups_cnt=50000)
+    # split_train_valid_test_datasets(
+    #         source_parquet_file=PROJECT_ROOT + '/data/my_dataset.shuffle.parquet',
+    #         max_len=320, 
+    #         groups_cnt=50000
+    #     )
 
     # parquet_to_text()
 

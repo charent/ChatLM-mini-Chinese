@@ -165,7 +165,7 @@ class ParquetDataset:
         return self.tokenizer
 
 if __name__ == '__main__':
-    parquet_file = PROJECT_ROOT + '/data/my_test_dataset.parquet'
+    parquet_file = PROJECT_ROOT + '/data/my_valid_dataset.parquet'
     tokenizer_file = PROJECT_ROOT + '/model_save/my_merged_tokenizer.json'
 
     # example 1：
@@ -178,14 +178,19 @@ if __name__ == '__main__':
     #     break
 
     # example 2:
-    dataset = ParquetDataset(parquet_file, tokenizer_file, max_len=16)
-    dataloader = DataLoader(dataset['train'], batch_size=16)
+    dataset = ParquetDataset(parquet_file, tokenizer_file, max_len=32)
+    dataloader = DataLoader(dataset['train'], batch_size=32)
     print(dataset.get_dataset_size('train'))
-    for batch in dataloader:
-        x, x_mask, y, y_mask = batch['inputs_ids'], batch['inputs_mask'], batch['target_ids'], batch['target_mask']
-        # print(x.shape, x_mask.shape, y.shape, y_mask.shape)
-
-        break
+    step = 0
+    for epoch in range(2):
+        for batch in dataloader:
+            x, x_mask, y, y_mask = batch['inputs_ids'], batch['inputs_mask'], batch['target_ids'], batch['target_mask']
+            step += 1
+            # print(x.shape, x_mask.shape, y.shape, y_mask.shape)
+            # break
+            if step % 500 == 0:
+                print(step)
+    print(step)
  
         
     
