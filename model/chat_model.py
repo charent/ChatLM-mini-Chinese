@@ -84,7 +84,8 @@ class TextToTextModel(Module):
             attention_mask=attention_mask,
             max_length=self.model_config.max_seq_len, 
             do_sample=True, 
-            top_p=0.6,
+            # top_p=0.6,
+            top_k=50,
             early_stopping=True
             )
 
