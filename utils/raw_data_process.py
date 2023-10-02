@@ -856,7 +856,7 @@ def count_my_parquet_data(parquet_file: str=None) -> None:
     console.print(table)    
 
 
-def split_train_valid_test_datasets(source_parquet_file: str, max_len: int=320, seed: int=23333, train_ratio: float=0.90, test_ratio: float=0.08, valid_ratio: float=0.02, groups_cnt: int=10000) -> None:
+def split_train_valid_test_datasets(source_parquet_file: str, max_len: int=320, seed: int=23333, train_ratio: float=0.91, test_ratio: float=0.0875, valid_ratio: float=0.0025, groups_cnt: int=10000) -> None:
     '''
     将原始数据拆分为训练集、测试集和验证集
     '''
@@ -984,7 +984,7 @@ if __name__ == '__main__':
     #     seed=23333
     # )
 
-    # # split train validated and test
+    # split train validated and test
     # split_train_valid_test_datasets(
     #         source_parquet_file=PROJECT_ROOT + '/data/my_dataset.shuffle.parquet',
     #         max_len=320, 
@@ -994,7 +994,7 @@ if __name__ == '__main__':
     # parquet_to_text()
 
     # count_my_parquet_data(PROJECT_ROOT + '/data/my_dataset.parquet')
-    # count_my_parquet_data(PROJECT_ROOT + '/data/')
+    count_my_parquet_data(PROJECT_ROOT + '/data/')
 
 
     # count_my_json_data()

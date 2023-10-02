@@ -1,6 +1,7 @@
 from nltk.translate.bleu_score import sentence_bleu
 from collections import Counter
 import numpy as np
+import ujson
 
 def get_bleu4_score(reference: str | list[str], outputs: str | list[str], n_gram: int=4) -> float:
     '''
@@ -68,12 +69,22 @@ def extract_Ngram(words_list: list[str], n_gram: int) -> tuple:
     return ngram_counter
 
 
+def save_model_config(config_dict: dict, file: str) -> None:
+    '''
+    将模型配置写入到json文件, 输入模型保存的目录及文件名
+    '''
+    # file = file.replace('\\', '/')
+    # file = '{}/model_config.json'.format('/'.join(file.split('/')[0: -1]))
+    
+    with open(file, 'w', encoding='utf-8') as f:
+        ujson.dump(config_dict, f, indent=4, ensure_ascii=False)
+
 if __name__ == '__main__':
-    a = '抱歉，我不知道ABB代表什么意思'
-    b = '我不明白ABB是什么意思'
-    b1 = sentence_bleu([list(b)], list(a),  weights=(0.25, 0.25, 0.25, 0.25))
+    ref = '抱歉，我不知道ABB代表什么意思'
+    out = '我不明白ABB是什么意思'
+    b1 = sentence_bleu([list(out)], list(ref),  weights=(0.25, 0.25, 0.25, 0.25))
     print(b1)
-    b2 = get_bleu4_score(b, a)
+    b2 = get_bleu4_score(out, ref)
     print(b2)
 
     

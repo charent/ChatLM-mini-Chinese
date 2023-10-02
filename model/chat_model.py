@@ -9,7 +9,6 @@ sys.path.append('.')
 sys.path.append('..')
 
 from config import T5ModelConfig
-
 from config import PROJECT_ROOT
 
 class TextToTextModel(Module):
@@ -18,7 +17,7 @@ class TextToTextModel(Module):
         默认T5Config {
             "d_ff": 2048,                   # 全连接层维度
             "d_kv": 64,                     # 注意力头数, d_model // num_heads == d_kv
-            "d_model": 512,                 # 词向量大学
+            "d_model": 512,                 # 词向量维度
             "dense_act_fn": "relu",
             "dropout_rate": 0.1,
             "eos_token_id": 1,
@@ -36,7 +35,7 @@ class TextToTextModel(Module):
             "relative_attention_num_buckets": 32,
             "transformers_version": "4.25.1",
             "use_cache": true,
-            "vocab_size": 20480             # 词库大大小
+            "vocab_size": 20480             # 词库大小
         }
         '''
         super(TextToTextModel, self).__init__()
@@ -66,7 +65,8 @@ class TextToTextModel(Module):
         t5_config.decoder_start_token_id = decoder_start_token_id
         # print(t5_config)
 
-        self.model_config = config
+        self.user_config = config
+        self.t5_config = t5_config
         
         self.model = T5ForConditionalGeneration(t5_config)
 
@@ -82,11 +82,14 @@ class TextToTextModel(Module):
         result = self.model.generate(
             inputs=input_ids,
             attention_mask=attention_mask,
-            max_length=self.model_config.max_seq_len, 
+            max_length=self.user_config.max_seq_len, 
             do_sample=True, 
             # top_p=0.6,
             top_k=50,
-            early_stopping=True
+            early_stopping=True,
+            # num_beams=2,
+            # repetition_penalty=2.5,
+            # length_penalty=1.0,
             )
 
         return result

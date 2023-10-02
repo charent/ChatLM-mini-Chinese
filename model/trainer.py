@@ -23,7 +23,7 @@ from utils.functions import get_bleu4_score
 from utils.logger import Logger
 from model.chat_dataset import ParquetDataset
 from config import PROJECT_ROOT, TrainConfig, T5ModelConfig
-from utils.functions import get_bleu4_score
+from utils.functions import get_bleu4_score, save_model_config
 
 
 def transformers_trainer(config: TrainConfig) -> None:
@@ -81,7 +81,7 @@ class ChatTrainer:
         set_seed(train_config.seed)
         accelerator = Accelerator(mixed_precision=train_config.mixed_precision)
         device = accelerator.device
-        log.info('device {} is used!'.format(str(device)), save_to_file=True)
+        log.info('using device: {} '.format(str(device)), save_to_file=True)
 
         # T5: All labels set to `-100` are ignored (masked), the loss is only computed for labels in `[0, ..., config.vocab_size]`
         tokenizer = dataset.tokenizer
@@ -90,12 +90,16 @@ class ChatTrainer:
 
         model = TextToTextModel(config=model_config, decoder_start_token_id=decoder_start_token_id)
 
+        # 保存模型配置，方便修改配置后恢复
+        save_model_config(model.t5_config.to_diff_dict(), train_config.model_config_file)
+
         optimizer = torch.optim.AdamW(params=model.parameters(), lr=train_config.learn_rate)
         lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
                 optimizer=optimizer, 
                 max_lr=25 * train_config.learn_rate, 
                 epochs=train_config.epochs, 
-                steps_per_epoch=dataset.get_dataset_size('train') # 获取train dataset的长度
+                steps_per_epoch=dataset.get_dataset_size('train'),  # 获取train dataset的长度
+                div_factor=25,
                 )
         
         model, optimizer, lr_scheduler, train_dataloader, valid_dataloader = accelerator.prepare(
@@ -157,7 +161,7 @@ class ChatTrainer:
                     )
 
                     loss = outputs.loss.mean()
-                    loss_cpu = loss.detach().cpu().numpy() / train_config.batch_size
+                    loss_cpu = loss.detach().cpu().numpy()
                     
                     step_loss_sum += loss_cpu
                     epoch_loss_sum += loss_cpu
@@ -170,7 +174,7 @@ class ChatTrainer:
                     optimizer.zero_grad()
                    
                     # 更新进度条
-                    step_show_txt = 'step: {}/{}, loss: {:.6f}'.format(step, steps_per_epoch, loss)
+                    step_show_txt = 'step: {}/{}, loss: {:.6f}'.format(step, steps_per_epoch, loss_cpu)
                     progress.advance(steps_progress, advance=1)
                     progress.update(steps_progress, show_info=step_show_txt)
 
@@ -205,8 +209,9 @@ class ChatTrainer:
                     best_epoch = epoch
 
                     accelerator.wait_for_everyone()
-                    unwrap_model = accelerator.unwrap_model(model)
+                    
                     if accelerator.is_main_process: 
+                        unwrap_model = accelerator.unwrap_model(model)
                         model_dict = accelerator.get_state_dict(unwrap_model)
                         torch.save(model_dict, train_config.model_file.format(epoch))
 
@@ -265,14 +270,14 @@ class ChatTrainer:
 
                 # print(outputs, target_ids)
 
-                beleu4_score = get_bleu4_score(reference=target_ids, outputs=outputs)
-                bleu4_scores.append(beleu4_score)
+                bleu4_scores = [get_bleu4_score(reference=target_ids[i], outputs=outputs[i]) for i in range(len(target_ids))]
+                bleu4_scores.extend(bleu4_scores)
 
                 if step >= max_batch_compute:
                     break
         
         avg_bleu4_score = np.average(bleu4_scores)
-        progress.update(eval_progress, show_info='belu4 score: {}'.format(avg_bleu4_score))
+        progress.update(eval_progress, show_info='bleu4 score: {}'.format(avg_bleu4_score))
 
         return avg_bleu4_score
 
@@ -300,7 +305,7 @@ class ChatTrainer:
         set_seed(train_config.seed)
         accelerator = Accelerator(mixed_precision=train_config.mixed_precision)
         device = accelerator.device
-        log.info('device {} is used!'.format(str(device)), save_to_file=True)
+        log.info('using device: {} '.format(str(device)), save_to_file=True)
 
         # T5: All labels set to `-100` are ignored (masked), the loss is only computed for labels in `[0, ..., config.vocab_size]`
         tokenizer = dataset.tokenizer
@@ -361,16 +366,18 @@ class ChatTrainer:
                     outputs = [sentance.replace(' ', '') for sentance in outputs]
                     target_ids = [sentance.replace(' ', '') for sentance in target_ids]
 
-                    # print(outputs, target_ids)
+                    # print('outputs: {}'.format(outputs[0:5]))
+                    # print('target_ids: {}'.format(target_ids[0:5]))
+                    # print()
 
-                    beleu4_score = get_bleu4_score(reference=target_ids, outputs=outputs)
-                    bleu4_scores.append(beleu4_score)
 
-                    if step >= 10:
-                        break
+                    bleu4_scores = [get_bleu4_score(reference=target_ids[i], outputs=outputs[i]) for i in range(len(target_ids))]
+                    bleu4_scores.extend(bleu4_scores)
+
+                    # if step >= 10: break
         
         avg_bleu4_score = np.average(bleu4_scores)
-        progress.update(steps_progress, show_info='belu4 score: {}'.format(avg_bleu4_score))
+        progress.update(steps_progress, show_info='bleu4 score: {}'.format(avg_bleu4_score))
 
         info_txt = 'test_dataset_size: {}, avg_bleu4_score:{}.'.format(dataset.get_dataset_size('test'), avg_bleu4_score)
         log.info(info_txt, save_to_file=True)
