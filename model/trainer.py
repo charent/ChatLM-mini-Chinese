@@ -1,3 +1,7 @@
+import signal
+import sys
+import time
+
 import numpy as np
 from torch.utils.data import DataLoader
 import torch 
@@ -44,7 +48,43 @@ class ChatTrainer:
         self.model_config = model_config
 
         # file_name=None会自动生成以当前日期命名的log文件名
-        self.logger = Logger('chat_trainer', std_out=True, save2file=True, file_name=None) 
+        self.logger = Logger('chat_trainer', std_out=True, save2file=True, file_name=None)
+
+        self.model = None
+        self.accelerator = None
+
+        signal.signal(signal.SIGINT, self.process_exit_handler)
+    
+    def process_exit_handler(self, signal_received, frame) -> None:
+        '''
+        进程退出时的操作，保存模型
+        '''
+        ask = "are you sure to exit this process?  Yes (y) or No (n)"
+        if self.accelerator:
+            self.accelerator.print(ask)
+        else:
+            print(ask)
+
+        ins = input()
+        
+        if ins.lower() in ('yes', 'y'):
+            if self.accelerator:
+                suffix =  'exit_save_{}'.format(str(time.strftime('%Y%m%d%H%M%S', time.localtime())))
+                self.accelerator.wait_for_everyone()
+                self.save_model(suffix)
+
+                self.accelerator.print('model ckeck point has been saved!')
+            else:
+                print('process not in trainingg, exit.')
+            sys.exit(0)
+        else:
+            print('do nothing!')
+
+    def save_model(self, suffix: str) -> None:
+        if self.model and self.accelerator:
+            unwrap_model = self.accelerator.unwrap_model(self.model)
+            model_dict =  self.accelerator.get_state_dict(unwrap_model)
+            torch.save(model_dict, self.train_config.model_file.format(suffix))
     
     def train(self, ) -> None:
         '''
@@ -102,6 +142,9 @@ class ChatTrainer:
                 valid_dataloader
             )
         
+        self.model = model
+        self.accelerator = accelerator
+
         steps_per_epoch = int(np.ceil(dataset.get_dataset_size('train') // train_config.batch_size))
         eval_steps = int(np.ceil(dataset.get_dataset_size('validation') // train_config.batch_size))
 
