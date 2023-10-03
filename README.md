@@ -1,7 +1,7 @@
 # Chat-LM-small
 
 #### 介绍
-
+*Read this in [English](README.en.md).*
 
 #### 软件架构
 软件架构说明
