@@ -1,12 +1,8 @@
 from os.path import dirname, abspath
-import sys
 import torch
 from torch.nn import Module
 from torch import Tensor, LongTensor
 from transformers import T5ForConditionalGeneration, T5Config
-
-sys.path.append('.')
-sys.path.append('..')
 
 from config import T5ModelConfig
 from config import PROJECT_ROOT

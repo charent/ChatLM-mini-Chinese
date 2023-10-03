@@ -1,4 +1,5 @@
-import sys
+from typing import Union
+
 from torch.utils.data import Dataset
 from tokenizers import Tokenizer
 from fastparquet import ParquetFile
@@ -6,9 +7,6 @@ from os.path import dirname, abspath
 from torch.utils.data import DataLoader
 from datasets import load_dataset
 import datasets
-
-sys.path.append('.')
-sys.path.append('..')
 
 from config import PROJECT_ROOT
 
@@ -72,7 +70,7 @@ class MyDataset(Dataset):
 
 class ParquetDataset:
  
-    def __init__(self,  parquet_file: str|dict, tokenizer_file: str, buffer_size: int=8192, max_len: int=256, seed: int=23333) -> None:
+    def __init__(self,  parquet_file: Union[str, dict], tokenizer_file: str, buffer_size: int=10240, max_len: int=256, seed: int=23333) -> None:
         '''
         使用huggingface的loaddataset方法加载,
         parquet_file: 单个文件，此时只能使用dataset['train']，
@@ -120,7 +118,7 @@ class ParquetDataset:
         '''
         return self.dataset[index]
     
-    def __get_all_parquet_file_size(self, parquet_file: str|dict) -> dict:
+    def __get_all_parquet_file_size(self, parquet_file: Union[str, dict]) -> dict:
         '''
         获取所有parquet file的长度
         '''

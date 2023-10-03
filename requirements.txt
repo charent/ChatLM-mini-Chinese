@@ -2,6 +2,7 @@ accelerate==0.23.0
 colorlog==6.7.0
 datasets==2.14.5
 fastparquet==2023.8.0
+fire==0.4.0
 jieba_fast==0.53
 matplotlib==3.6.3
 nltk==3.8.1

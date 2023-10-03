@@ -1,9 +1,11 @@
-from nltk.translate.bleu_score import sentence_bleu
 from collections import Counter
+from typing import Union
+
+from nltk.translate.bleu_score import sentence_bleu
 import numpy as np
 import ujson
 
-def get_bleu4_score(reference: str | list[str], outputs: str | list[str], n_gram: int=4) -> float:
+def get_bleu4_score(reference: Union[str, list[str]], outputs: Union[str, list[str]], n_gram: int=4) -> float:
     '''
     获取bleu4分数
     '''
