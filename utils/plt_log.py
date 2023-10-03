@@ -1,12 +1,9 @@
 # log 画图
-import sys
 from datetime import datetime
 import numpy as np
 import pandas as pd 
 
 from matplotlib import pyplot as plt
-
-sys.path.extend(['.', '..'])
 
 from config import PROJECT_ROOT
 

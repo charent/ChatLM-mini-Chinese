@@ -1,12 +1,8 @@
 import logging
 from os.path import dirname, abspath
-import sys 
 import os
 import colorlog 
 import time
-
-sys.path.append('.')
-sys.path.append('..')
 
 from config import PROJECT_ROOT
 

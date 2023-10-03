@@ -856,7 +856,7 @@ def count_my_parquet_data(parquet_file: str=None) -> None:
     console.print(table)    
 
 
-def split_train_valid_test_datasets(source_parquet_file: str, max_len: int=320, seed: int=23333, train_ratio: float=0.91, test_ratio: float=0.0875, valid_ratio: float=0.0025, groups_cnt: int=10000) -> None:
+def split_train_valid_test_datasets(source_parquet_file: str, max_len: int=320, seed: int=23333, train_ratio: float=0.91, test_ratio: float=0.0875, valid_ratio: float=0.0025, groups_cnt: int=50000) -> None:
     '''
     将原始数据拆分为训练集、测试集和验证集
     '''

@@ -1,7 +1,3 @@
-
-import os, sys
-import time
-
 import numpy as np
 from torch.utils.data import DataLoader
 import torch 
@@ -14,12 +10,8 @@ from tokenizers import Tokenizer
 from accelerate import Accelerator
 from accelerate.utils import set_seed
 
-sys.path.append('.')
-sys.path.append('..')
-
 # import 自定义类和函数
 from model.chat_model import TextToTextModel
-from utils.functions import get_bleu4_score
 from utils.logger import Logger
 from model.chat_dataset import ParquetDataset
 from config import PROJECT_ROOT, TrainConfig, T5ModelConfig
@@ -52,7 +44,7 @@ class ChatTrainer:
         self.model_config = model_config
 
         # file_name=None会自动生成以当前日期命名的log文件名
-        self.logger = Logger('chat_trainer', save2file=True, file_name=None) 
+        self.logger = Logger('chat_trainer', std_out=True, save2file=True, file_name=None) 
     
     def train(self, ) -> None:
         '''
