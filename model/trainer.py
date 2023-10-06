@@ -312,7 +312,8 @@ class ChatTrainer:
 
                 outputs = model.generate(
                     input_ids=input_ids,
-                    attention_mask=input_mask
+                    attention_mask=input_mask,
+                    max_seq_len=self.train_config.max_seq_len,
                 )
 
       
@@ -421,7 +422,8 @@ class ChatTrainer:
 
                     outputs = model.generate(
                         input_ids=input_ids,
-                        attention_mask=input_mask
+                        attention_mask=input_mask,
+                        max_seq_len=self.train_config.max_seq_len,
                     )
 
                     # gather data from multi-gpus (used when in ddp mode)

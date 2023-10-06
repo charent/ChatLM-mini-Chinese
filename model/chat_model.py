@@ -36,7 +36,6 @@ class TextToTextModel(Module):
         '''
         super(TextToTextModel, self).__init__()
 
-        assert config.max_seq_len > 0
         assert config.d_model // config.num_heads == config.d_kv
 
         t5_config = T5Config()
@@ -74,11 +73,11 @@ class TextToTextModel(Module):
             **args
             )
 
-    def generate(self, input_ids: LongTensor, attention_mask: LongTensor) -> Tensor:
+    def generate(self, input_ids: LongTensor, attention_mask: LongTensor, max_seq_len: int=256) -> Tensor:
         result = self.model.generate(
             inputs=input_ids,
             attention_mask=attention_mask,
-            max_length=self.user_config.max_seq_len, 
+            max_length=max_seq_len, 
             do_sample=True, 
             # top_p=0.6,
             top_k=50,

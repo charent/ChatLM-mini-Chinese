@@ -21,7 +21,7 @@ class TrainConfig:
 
     seed: int = 23333
     dataloader_buffer_size: int = 50000
-    max_seq_len: int = 128
+    max_seq_len: int = 320                      # 最大句子长度，默认：256
 
 
 #==================================================================
@@ -29,7 +29,6 @@ class TrainConfig:
 
 @dataclass
 class T5ModelConfig:
-    max_seq_len: int = 320                  # 默认：256
 
     d_ff: int = 3072                        # 全连接层维度，默认：2048, 大：3072
 
