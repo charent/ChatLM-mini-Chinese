@@ -11,6 +11,10 @@ from rich.table import Table
 from rich.console import Console
 from fastparquet import ParquetFile, write
 from opencc import OpenCC
+from tokenizers import Tokenizer
+
+# import sys
+# sys.path.extend(['.','..'])
 
 from logger import Logger
 from config import PROJECT_ROOT
@@ -944,6 +948,52 @@ def parquet_to_text(sep='[SEP]', buffer_size: int=50000) -> None:
             f_write.writelines(cur_rows)
             cur_rows = []
 
+def text_dataset_to_ids_dataset(tokenizer_file: str, max_len: int=320, pad_token: str='[PAD]') -> None:
+    '''
+    将text字符全部转换为id， 从parquet文件加载list对象太慢了，这个函数没用
+    '''
+
+    text_files = [
+        PROJECT_ROOT + '/data/my_train_dataset.parquet',
+        PROJECT_ROOT + '/data/my_test_dataset.parquet',
+        PROJECT_ROOT + '/data/my_valid_dataset.parquet',
+    ]
+
+    save_ids_files = [
+        PROJECT_ROOT + '/data/my_train_ids_dataset.parquet',
+        PROJECT_ROOT + '/data/my_test_ids_dataset.parquet',
+        PROJECT_ROOT + '/data/my_valid_ids_dataset.parquet',
+    ]
+
+    # 询问删除旧的文件
+    for ids_file in save_ids_files:
+            if exists(ids_file): 
+                assert delete_file(ids_file)
+
+    tokenizer = Tokenizer.from_file(tokenizer_file)
+    tokenizer.enable_padding(length=max_len)
+    tokenizer.enable_truncation(max_length=max_len)
+    encode_batch = tokenizer.encode_batch
+
+    for i, txt_file in enumerate(text_files):
+        
+        log.info('processing file: {}'.format(txt_file))
+        parquet_data = ParquetFile(txt_file)
+
+        for pf_chunk in progress.track(parquet_data):
+                for rows in pf_chunk.iter_row_groups(): #一个pf_chunk大概1万-5万条数据，视写入parquet时的配置定
+
+                    # text to ids
+                    question = encode_batch(rows['question'])
+                    answer = encode_batch(rows['answer'])
+                    
+                    input_ids = [q.ids for q in question]
+                    target_ids = [a.ids for a in answer]
+
+                    df = pd.DataFrame({'input_ids': input_ids, 'target_ids': target_ids})
+                    write_single_parquet_file(save_ids_files[i], df)
+
+
 if __name__ == '__main__':
 
     processed_file_dir = PROJECT_ROOT + '/data/my_data'
@@ -992,6 +1042,9 @@ if __name__ == '__main__':
     #     )
 
     # parquet_to_text()
+
+    # 从parquet文件加载list太慢了
+    # text_dataset_to_ids_dataset(tokenizer_file=PROJECT_ROOT + '/model_save/my_merged_tokenizer.json', max_len=320)
 
     # count_my_parquet_data(PROJECT_ROOT + '/data/my_dataset.parquet')
     count_my_parquet_data(PROJECT_ROOT + '/data/')
