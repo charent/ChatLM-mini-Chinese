@@ -9,6 +9,7 @@ nltk==3.8.1
 numpy==1.24.1
 opencc_python_reimplemented==0.1.7
 pandas==1.5.3
+psutil==5.9.4
 rich==13.6.0
 sentencepiece==0.1.99
 tokenizers==0.13.2

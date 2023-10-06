@@ -6,7 +6,7 @@ PROJECT_ROOT: str = abspath(dirname(__file__))
 @dataclass
 class TrainConfig:
     epochs: int = 5
-    batch_size: int = 32
+    batch_size_per_gpu: int = 48
     learn_rate: float = 0.0001    # 最大 25 * learn_rate
 
     mixed_precision: str = "no" #混合精度 ''no','fp16','bf16 or 'fp8'

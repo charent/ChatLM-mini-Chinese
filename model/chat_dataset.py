@@ -1,12 +1,16 @@
 from typing import Union
 
 from torch.utils.data import Dataset
+from torch import LongTensor
 from tokenizers import Tokenizer
 from fastparquet import ParquetFile
-from os.path import dirname, abspath
 from torch.utils.data import DataLoader
 from datasets import load_dataset
 import datasets
+from numpy import array, int64
+
+# import sys 
+# sys.path.extend(['.', '..'])
 
 from config import PROJECT_ROOT
 
@@ -70,14 +74,22 @@ class MyDataset(Dataset):
 
 class ParquetDataset:
  
-    def __init__(self,  parquet_file: Union[str, dict], tokenizer_file: str, buffer_size: int=10240, max_len: int=256, seed: int=23333) -> None:
+    def __init__(self,  
+                parquet_file: Union[str, dict],
+                tokenizer_file: str, 
+                keep_in_memory: bool=False,
+                buffer_size: int=10240, 
+                max_len: int=256, 
+                seed: int=23333
+            ) -> None:
         '''
         使用huggingface的loaddataset方法加载,
         parquet_file: 单个文件，此时只能使用dataset['train']，
                 多个文件请用:parquet_file={'train': 'train.parquet', 'test': 'test.parquet', 'validation': 'validation.parquet'})
                 其他用法见：https://huggingface.co/docs/datasets/loading
+        keep_in_memory: 是否将parquet文件转换为pandas.DataFrame格式存放到内存
         '''
-
+        self.keep_in_memory = keep_in_memory
         self.len_dict = self.__get_all_parquet_file_size(parquet_file=parquet_file)
 
         tokenizer = Tokenizer.from_file(tokenizer_file)
@@ -87,30 +99,37 @@ class ParquetDataset:
 
         self.encode_batch = self.tokenizer.encode_batch
         
-        dataset = load_dataset('parquet', data_files=parquet_file, streaming=True) # streaming=True,否则大数据集OOM
+        streaming = False if keep_in_memory else True 
+        # streaming=True,否则大数据集OOM
+        dataset = load_dataset('parquet', data_files=parquet_file, streaming=streaming) 
 
         # 这里的batch_size不是训练的batch_size，是传递给precess_batch_func的batch_size
         dataset = dataset.map(self.precess_batch_func, batched=True, batch_size=buffer_size, \
-                              remove_columns=['question', 'answer'],  fn_kwargs={'encode_batch': self.encode_batch})
+                            remove_columns=['question', 'answer'],  fn_kwargs={'encode_batch': self.encode_batch})
         
         dataset = dataset.with_format(type="torch")
 
-        # 只能打乱缓冲区内的数据，不能打乱整个数据集，因此可以将缓存区设置稍微大一些
-        dataset = dataset.shuffle(seed=seed, buffer_size=buffer_size)
+        if keep_in_memory:
+           dataset = dataset.shuffle(seed=seed, keep_in_memory=keep_in_memory)
+        else:
+            # 只能打乱缓冲区内的数据，不能打乱整个数据集，因此可以将缓存区设置稍微大一些
+            dataset = dataset.shuffle(seed=seed, buffer_size=buffer_size)
 
         self.dataset = dataset
     
-    def precess_batch_func(self, item: dict, encode_batch: object) -> dict:
+    @staticmethod
+    def precess_batch_func(item: dict, encode_batch: object) -> dict:
         '''
         处理一个批次的文本，转换为id，并返回mask
         '''
         question = encode_batch(item['question'])
         answer = encode_batch(item['answer'])
 
-        inputs_ids, inputs_mask = [q.ids for q in question], [q.attention_mask for q in question]
-        target_ids, target_mask = [a.ids for a in answer], [a.attention_mask for a in answer]
+        input_ids, input_mask = [q.ids for q in question], [q.attention_mask for q in question]
+        target_ids = [a.ids for a in answer]
+        # target_mask = [a.attention_mask for a in answer]
 
-        return {'inputs_ids': inputs_ids, 'inputs_mask': inputs_mask, 'target_ids': target_ids, 'target_mask': target_mask}
+        return {'input_ids': input_ids, 'input_mask': input_mask, 'target_ids': target_ids}
     
     def __getitem__(self, index: str) -> datasets.Dataset:
         '''
@@ -147,10 +166,13 @@ class ParquetDataset:
         return cnt 
     
     def __len__(self) -> int:
+        '''
+        魔术方法，如果只有一个数据集，返回默认数据集大小
+        '''
         if len(self.len_dict) == 1:
             return self.len_dict['train']
         else:
-            raise Exception("this dataset contains many splited dataset, use `get_dataset_size(split_name)` function to get len, e.g: get_dataset_size('train')")
+            raise Exception("this dataset contains many splited datasets, use `get_dataset_size(split_name)` function to get length, e.g: get_dataset_size('train')")
     
     def get_dataset_size(self, split_name: str) -> int:
         '''
@@ -171,20 +193,21 @@ if __name__ == '__main__':
     # print(len(dataset))
     # dataloader = DataLoader(dataset, batch_size=16)
 
-    # for x, x_mask, y, y_mask in dataloader:
-    #     print(x, x_mask, y, y_mask)
+    # for batch in dataloader:
+    #     x, x_mask, y = batch['input_ids'], batch['input_mask'], batch['target_ids']
+    #     print(x.shape, x_mask.shape, y.shape)
     #     break
-
+    
     # example 2:
-    dataset = ParquetDataset(parquet_file, tokenizer_file, max_len=32)
+    dataset = ParquetDataset(parquet_file, tokenizer_file, keep_in_memory=True, max_len=32)
     dataloader = DataLoader(dataset['train'], batch_size=32)
     print(dataset.get_dataset_size('train'))
     step = 0
     for epoch in range(2):
         for batch in dataloader:
-            x, x_mask, y, y_mask = batch['inputs_ids'], batch['inputs_mask'], batch['target_ids'], batch['target_mask']
+            x, x_mask, y = batch['input_ids'], batch['input_mask'], batch['target_ids']
             step += 1
-            # print(x.shape, x_mask.shape, y.shape, y_mask.shape)
+            print(x.shape, x_mask.shape, y.shape)
             # break
             if step % 500 == 0:
                 print(step)
