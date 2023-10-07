@@ -7,7 +7,9 @@ PROJECT_ROOT: str = abspath(dirname(__file__))
 class TrainConfig:
     epochs: int = 5
     batch_size_per_gpu: int = 48
-    learn_rate: float = 0.0001    # 最大 25 * learn_rate
+    
+    learn_rate: float = 0.00001    # 最大 div_factor * learn_rate
+    div_factor: int = 100
 
     mixed_precision: str = "no" #混合精度 ''no','fp16','bf16 or 'fp8'
 
@@ -17,6 +19,8 @@ class TrainConfig:
     train_file: str = PROJECT_ROOT + '/data/my_train_dataset.parquet'
     validation_file: str = PROJECT_ROOT + '/data/my_valid_dataset.parquet'
     test_file: str = PROJECT_ROOT + '/data/my_test_dataset.parquet'
+
+    # dataset_cache_dir: str = PROJECT_ROOT + '/data/.cache'
     # trainer_log_file: str = PROJECT_ROOT + '/logs/trainer.log'
 
     seed: int = 23333

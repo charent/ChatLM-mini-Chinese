@@ -1,9 +1,34 @@
 from collections import Counter
 from typing import Union
 
+import ctypes
+import os
+import platform
+
 from nltk.translate.bleu_score import sentence_bleu
 import numpy as np
 import ujson
+
+def get_free_space_of_disk(folder: str='./') -> float:
+    '''
+    获取指定目录所在磁盘大小，返回单位: GB
+    '''
+    res_val = 0.0
+    if platform.system() == 'Windows':
+        free_bytes = ctypes.c_ulonglong(0)
+        ctypes.windll.kernel32.GetDiskFreeSpaceExW(ctypes.c_wchar_p(folder), None, None, ctypes.pointer(free_bytes))
+        res_val = free_bytes.value 
+    else:
+        st = os.statvfs(folder)
+        res_val = st.f_bavail * st.f_frsize
+    
+    return res_val / (1024 ** 3)
+
+def my_average(arry_list: list[float]) -> float:
+    
+    if len(arry_list) == 0: return 0.0 
+    
+    return np.average(arry_list)
 
 def get_bleu4_score(reference: Union[str, list[str]], outputs: Union[str, list[str]], n_gram: int=4) -> float:
     '''

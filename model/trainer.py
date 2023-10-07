@@ -6,7 +6,6 @@ from psutil import virtual_memory
 import numpy as np
 from torch.utils.data import DataLoader
 import torch 
-from torch import nn 
 from rich.progress import Progress, TextColumn, BarColumn, TimeElapsedColumn, TimeRemainingColumn
 from transformers import TrainingArguments, Trainer
 from tokenizers import Tokenizer
@@ -18,9 +17,9 @@ from accelerate.utils import set_seed
 # import 自定义类和函数
 from model.chat_model import TextToTextModel
 from utils.logger import Logger
-from model.chat_dataset import ParquetDataset
+from model.dataset import MyDataset
 from config import PROJECT_ROOT, TrainConfig, T5ModelConfig
-from utils.functions import get_bleu4_score, save_model_config
+from utils.functions import get_bleu4_score, save_model_config, get_free_space_of_disk, my_average
 
 
 def transformers_trainer(config: TrainConfig) -> None:
@@ -96,27 +95,44 @@ class ChatTrainer:
 
         # 根据剩余内存大小决定是否完全加载数据集到内存中
         unuse_mem = virtual_memory().available / (1024 ** 3)  # 单位：GB
+        unuse_disk = get_free_space_of_disk('./')
 
         # 剩余内存≥24GB将把数据集留在内存中
         keep_in_memory = True if unuse_mem >= 24.0 else False
 
+        log.info('cpu memory available: {:.2f} GB, disk space available: {:.2f} GB, keep dataset in memory: {}.'\
+                 .format(unuse_mem, unuse_disk, keep_in_memory), save_to_file=True)
         log.info('loading datasets ...')
-        dataset = ParquetDataset(
-            parquet_file={
-                'train': train_config.train_file,
-                'validation': train_config.validation_file,
-            }, 
+
+        train_dataset = MyDataset(
+            parquet_file=train_config.train_file,
             tokenizer_file=train_config.tokenizer_file,
             keep_in_memory=keep_in_memory,
-            buffer_size=train_config.dataloader_buffer_size,
-            max_len=train_config.max_seq_len,
-            seed=train_config.seed,
+            max_seq_len=train_config.max_seq_len,
         )
-        
-        train_dataloader = DataLoader(dataset['train'], batch_size=train_config.batch_size_per_gpu)
-        valid_dataloader = DataLoader(dataset['validation'], batch_size=train_config.batch_size_per_gpu)
+        valid_dataset = MyDataset(
+            parquet_file=train_config.validation_file,
+            tokenizer_file=train_config.tokenizer_file,
+            keep_in_memory=keep_in_memory,
+            max_seq_len=train_config.max_seq_len,
+        )
 
-        log.info('train dataset size: {}, validation dataset size: {}.'.format(dataset.get_dataset_size('train'), dataset.get_dataset_size('validation')), save_to_file=True)
+        batch_size = train_config.batch_size_per_gpu
+        train_dataloader = DataLoader(
+            train_dataset, 
+            batch_size=batch_size,  
+            shuffle=False,
+            collate_fn=train_dataset.collate_fn,
+        )
+        valid_dataloader = DataLoader(
+            valid_dataset, 
+            batch_size=batch_size, 
+            shuffle=False,
+            collate_fn=valid_dataset.collate_fn,
+        )
+
+        log.info('train dataset size: {}, validation dataset size: {}.'\
+                .format(len(train_dataset), len(valid_dataset)), save_to_file=True)
 
         set_seed(train_config.seed)
         accelerator = Accelerator(mixed_precision=train_config.mixed_precision)
@@ -124,7 +140,7 @@ class ChatTrainer:
         log.info('using device: {} '.format(str(device)), save_to_file=True)
 
         # T5: All labels set to `-100` are ignored (masked), the loss is only computed for labels in `[0, ..., config.vocab_size]`
-        tokenizer = dataset.tokenizer
+        tokenizer = train_dataset.tokenizer
         decoder_start_token_id = tokenizer.token_to_id('[PAD]')
         model_config.vocab_size = tokenizer.get_vocab_size()  # 往config添加vocab_size
 
@@ -138,16 +154,16 @@ class ChatTrainer:
                 optimizer=optimizer, 
                 max_lr=25 * train_config.learn_rate, 
                 epochs=train_config.epochs, 
-                steps_per_epoch=dataset.get_dataset_size('train'),  # 获取train dataset的长度
-                div_factor=25,
-                )
+                steps_per_epoch=len(train_dataset),  # 获取train dataset的长度
+                div_factor=train_config.div_factor,
+            )
         
         model, optimizer, lr_scheduler, train_dataloader, valid_dataloader = accelerator.prepare(
                 model, 
                 optimizer,
                 lr_scheduler, 
                 train_dataloader, 
-                valid_dataloader
+                valid_dataloader,
             )
         
         self.model = model
@@ -162,13 +178,13 @@ class ChatTrainer:
         if num_gpus_used >= 1:
             total_batch_size = num_gpus_used * train_config.batch_size_per_gpu
 
-        steps_per_epoch = int(np.ceil(dataset.get_dataset_size('train') // total_batch_size))
-        eval_steps = int(np.ceil(dataset.get_dataset_size('validation') // total_batch_size))
+        steps_per_epoch = int(np.ceil(len(train_dataset) // total_batch_size))
+        eval_steps = int(np.ceil(len(valid_dataset) // total_batch_size))
 
         best_bleu4 = 0.0
         best_epoch = 0
-        epoch_loss_sum = 0.0
-        step_loss_sum = 0.0
+        epoch_loss_list = []
+        step_loss_list = []
 
         log_loss_interval_n = 50 # 每间隔 n 步保存一次loss到文件
 
@@ -189,16 +205,19 @@ class ChatTrainer:
                 
                 if accelerator.is_main_process:
                     epoch_show_txt = 'epoch: {}/{}, avg_loss: {:.6f}, best_epoch: {}, best_bleu: {}'.format(
-                        epoch, train_config.epochs, epoch_loss_sum / steps_per_epoch, best_epoch, best_bleu4
+                        epoch, train_config.epochs, my_average(epoch_loss_list), best_epoch, best_bleu4
                     )
                     progress.update(epoch_progress, show_info=epoch_show_txt)
                     progress.reset(steps_progress)
 
-                epoch_loss_sum = 0.0
+                epoch_loss_list = []
                 model.train()
                 
                 for step, batch_data in enumerate(train_dataloader):
-                    
+                    if batch_data is None:
+                        print('epoch:{}, step:{}'.format(epoch, step))
+                        continue
+
                     input_ids, input_mask = batch_data['input_ids'], batch_data['input_mask']
                     # target_ids, target_mask = batch_data['target_ids'], batch_data['target_mask']
                     target_ids = batch_data['target_ids']
@@ -217,8 +236,8 @@ class ChatTrainer:
                     loss = outputs.loss.mean()
                     loss_cpu = loss.detach().cpu().numpy()
                     
-                    step_loss_sum += loss_cpu
-                    epoch_loss_sum += loss_cpu
+                    step_loss_list.append(loss_cpu)
+                    epoch_loss_list.append(loss_cpu)
 
                     # attention here! loss.backward()
                     accelerator.backward(loss) 
@@ -235,16 +254,18 @@ class ChatTrainer:
 
                     # 保存 loss 到文件
                     if step % log_loss_interval_n == 0 or step == eval_steps - 1:
-                        info_txt = 'training loss: epoch:{}, step:{}, loss:{}, device: {}'.\
-                            format(epoch, step, step_loss_sum / log_loss_interval_n, str(accelerator.device))
+                        
+                        info_txt = 'training loss: epoch:{}, step:{}, loss:{}, device:{}'.\
+                            format(epoch, step, my_average(step_loss_list), str(accelerator.device))
                         
                         log.info(info_txt, std_out=False, save_to_file=True)
-                        step_loss_sum = 0.0
-
+                        step_loss_list = []
+                    
                     # if step >= 20:break
-                    # break
                 
                 #  end for
+
+                #  end for batch
                 progress.advance(epoch_progress, advance=1)
                 model.eval()
                 
@@ -273,9 +294,10 @@ class ChatTrainer:
                 # 每个epoch打印一下日志
                 if accelerator.is_main_process:
                     info_txt = 'epoch log: epoch:{}, avg_loss:{}, cur_bleu4:{}, best_bleu4:{}, best_epoch:{}'.\
-                                format(epoch, epoch_loss_sum / steps_per_epoch, cur_bleu4_score, best_bleu4, best_epoch)
+                                format(epoch, my_average(epoch_loss_list), cur_bleu4_score, best_bleu4, best_epoch)
                     # log.info(info_txt, std_out=True, save_to_file=True)
                     self.print_and_log(info_txt, accelerator)
+                    epoch_loss_list = []
 
 
     def evaluate(self, 
@@ -286,13 +308,12 @@ class ChatTrainer:
                 eval_progress: Progress,
                 progress: Progress,
                 eval_steps: int,
-                max_batch_compute: int=10,
             ) -> float:
         
         '''
         评估，返回平均的bleu分数
         '''
-        
+        max_seq_len = self.train_config.max_seq_len
         decode_batch = tokenizer.decode_batch
         bleu4_scores = []
 
@@ -313,7 +334,7 @@ class ChatTrainer:
                 outputs = model.generate(
                     input_ids=input_ids,
                     attention_mask=input_mask,
-                    max_seq_len=self.train_config.max_seq_len,
+                    max_seq_len=max_seq_len,
                 )
 
       
@@ -334,9 +355,9 @@ class ChatTrainer:
                 bleu4_scores = [get_bleu4_score(reference=target_ids[i], outputs=outputs[i]) for i in range(len(target_ids))]
                 bleu4_scores.extend(bleu4_scores)
 
-                # if step >= max_batch_compute: break
+                # if step >= 10: break
         
-        avg_bleu4_score = np.average(bleu4_scores)
+        avg_bleu4_score = my_average(bleu4_scores)
         if accelerator.is_main_process:
             progress.update(eval_progress, show_info='bleu4 score: {}'.format(avg_bleu4_score))
             progress.update(eval_progress, visible=False)
@@ -350,19 +371,21 @@ class ChatTrainer:
         model_config = self.model_config
         log = self.logger
 
-        dataset = ParquetDataset(
-            parquet_file={
-                'test': train_config.test_file,
-            }, 
-            tokenizer_file=train_config.tokenizer_file, 
-            buffer_size=train_config.dataloader_buffer_size,
-            max_len=train_config.max_seq_len,
-            seed=train_config.seed,
+        test_dataset = MyDataset(
+            parquet_file=train_config.train_file,
+            tokenizer_file=train_config.tokenizer_file,
+            keep_in_memory=True,
+            max_seq_len=train_config.max_seq_len,
         )
         
-        test_dataloader = DataLoader(dataset['test'], batch_size=train_config.batch_size_per_gpu)
+        test_dataloader = DataLoader(
+            test_dataset, 
+            batch_size=train_config.batch_size_per_gpu,
+            shuffle=False,
+            collate_fn=test_dataset.collate_fn
+        )
 
-        log.info('test dataset size: {}.'.format(dataset.get_dataset_size('test')), save_to_file=True)
+        log.info('test dataset size: {}.'.format(len(test_dataset)), save_to_file=True)
 
         set_seed(train_config.seed)
         accelerator = Accelerator(mixed_precision=train_config.mixed_precision)
@@ -379,7 +402,7 @@ class ChatTrainer:
             total_batch_size = num_gpus_used * train_config.batch_size_per_gpu
 
         # T5: All labels set to `-100` are ignored (masked), the loss is only computed for labels in `[0, ..., config.vocab_size]`
-        tokenizer = dataset.tokenizer
+        tokenizer = test_dataset.tokenizer
         decoder_start_token_id = tokenizer.token_to_id('[PAD]')
         model_config.vocab_size = tokenizer.get_vocab_size()  # 往config添加vocab_size
 
@@ -391,12 +414,12 @@ class ChatTrainer:
                 test_dataloader,
             )
         
-        steps = int(np.ceil(dataset.get_dataset_size('test') // total_batch_size))
+        steps = int(np.ceil(len(test_dataset) // total_batch_size))
 
         bleu4 = 0.0
         bleu4_scores = []
         decode_batch = tokenizer.decode_batch
-
+        max_seq_len = self.train_config.max_seq_len
         model.eval()
 
         with Progress(TextColumn("[progress.description]{task.description}"),
@@ -420,19 +443,20 @@ class ChatTrainer:
                     input_ids, input_mask = batch_data['input_ids'], batch_data['input_mask']
                     target_ids = batch_data['target_ids']
 
+                    # s = time.time()
                     outputs = model.generate(
                         input_ids=input_ids,
                         attention_mask=input_mask,
-                        max_seq_len=self.train_config.max_seq_len,
+                        max_seq_len=max_seq_len,
                     )
+                    # accelerator.print('generate used: {}'.format(time.time() - s))
 
                     # gather data from multi-gpus (used when in ddp mode)
                     outputs = accelerator.gather_for_metrics(outputs).cpu().numpy()
                     target_ids = accelerator.gather_for_metrics(target_ids).cpu().numpy()
-            
+                    
                     outputs = decode_batch(outputs,  skip_special_tokens=True)
                     target_ids = decode_batch(target_ids, skip_special_tokens=True )
-
 
                     # 删除decode出来字符间的空格
                     outputs = [sentance.replace(' ', '') for sentance in outputs]
@@ -448,11 +472,11 @@ class ChatTrainer:
 
                     # if step >= 10: break
         
-        avg_bleu4_score = np.average(bleu4_scores)
+        avg_bleu4_score = my_average(bleu4_scores)
         if accelerator.is_main_process:
             progress.update(steps_progress, show_info='bleu4 score: {}'.format(avg_bleu4_score))
 
-        info_txt = 'test_dataset_size: {}, avg_bleu4_score:{}.'.format(dataset.get_dataset_size('test'), avg_bleu4_score)
+        info_txt = 'test_dataset_size: {}, avg_bleu4_score:{}.'.format(len(test_dataset), avg_bleu4_score)
         log.info(info_txt, save_to_file=True)
 
         return avg_bleu4_score
