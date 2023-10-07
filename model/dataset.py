@@ -11,8 +11,8 @@ import datasets
 import pyarrow.parquet as pq
 from numpy import array, int64
 
-import sys 
-sys.path.extend(['.', '..'])
+# import sys 
+# sys.path.extend(['.', '..'])
 
 from config import PROJECT_ROOT
 
@@ -51,6 +51,9 @@ class MyDataset(Dataset):
         tokenizer.enable_truncation(max_length=max_seq_len)
         self.tokenizer = tokenizer
         self.encode = tokenizer.encode
+
+        # 在这里初始化generator
+        self.sample_generator = self.item_generator()
     
     def item_generator(self,) -> tuple:
         '''
@@ -74,7 +77,7 @@ class MyDataset(Dataset):
             data = self.data
             question, answer = data.iloc[index][0], data.iloc[index][1]
         else:
-            question, answer = next(self.item_generator())
+            question, answer = next(self.sample_generator)
 
         encode = self.encode
         question_encoded, answer_encoded = encode(question), encode(answer)
@@ -233,7 +236,9 @@ if __name__ == '__main__':
         for step, batch in enumerate(dataloader):
             x, x_mask, y = batch['input_ids'], batch['input_mask'], batch['target_ids']
             # print('epoch: {}, step:{},'.format(epoch, step),x.shape, x_mask.shape, y.shape)
-            # if step >= 5: break
+            # print(step, x, y)
+            # print()
+            if step >= 5: break
     
     exit(0)
     # example 2:
