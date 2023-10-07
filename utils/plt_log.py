@@ -61,4 +61,4 @@ def plot_traing_loss(log_file: str, start_date: str, end_date: str, pic_save_to_
 
 if __name__ == '__main__':
     
-    plot_traing_loss(PROJECT_ROOT + '/logs/trainer.log', '[2023-10-01 08:44:39.303]', '[2023-10-01 11:29:12.376]')
+    plot_traing_loss(PROJECT_ROOT + '/logs/chat_trainer-20231007.log', '[2023-10-07 14:14:39.303]', '[2023-10-07 15:29:12.376]')
