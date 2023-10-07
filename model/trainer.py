@@ -97,8 +97,8 @@ class ChatTrainer:
         unuse_mem = virtual_memory().available / (1024 ** 3)  # 单位：GB
         unuse_disk = get_free_space_of_disk('./')
 
-        # 剩余内存≥24GB将把数据集留在内存中
-        keep_in_memory = True if unuse_mem >= 24.0 else False
+        # 剩余内存≥32GB将把数据集留在内存中
+        keep_in_memory = True if unuse_mem >= 32.0 else False
 
         log.info('cpu memory available: {:.2f} GB, disk space available: {:.2f} GB, keep dataset in memory: {}.'\
                  .format(unuse_mem, unuse_disk, keep_in_memory), save_to_file=True)
@@ -152,7 +152,7 @@ class ChatTrainer:
         optimizer = torch.optim.AdamW(params=model.parameters(), lr=train_config.learn_rate)
         lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
                 optimizer=optimizer, 
-                max_lr=25 * train_config.learn_rate, 
+                max_lr=train_config.div_factor * train_config.learn_rate, 
                 epochs=train_config.epochs, 
                 steps_per_epoch=len(train_dataset),  # 获取train dataset的长度
                 div_factor=train_config.div_factor,
