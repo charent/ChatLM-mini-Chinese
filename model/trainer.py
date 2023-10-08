@@ -3,6 +3,7 @@ import sys
 import os
 import time
 from typing import Union
+import platform
 
 from psutil import virtual_memory
 import numpy as np
@@ -20,7 +21,7 @@ from accelerate.utils import set_seed
 from model.chat_model import TextToTextModel
 from utils.logger import Logger
 from model.dataset import MyDataset
-from config import PROJECT_ROOT, TrainConfig, T5ModelConfig
+from config import TrainConfig, T5ModelConfig
 from utils.functions import (
     get_bleu4_score, 
     save_model_config, 
@@ -60,6 +61,7 @@ class ChatTrainer:
 
         self.model = None
         self.accelerator = None
+        self.is_win_platfrom = True if platform.system() == 'Windows' else False
 
         signal.signal(signal.SIGINT, self.process_exit_handler)
     
@@ -209,7 +211,7 @@ class ChatTrainer:
         self.model = model
         self.accelerator = accelerator
 
-        # 获取当前运行使用了多少个GPU
+        # 获取当前机器有多少个GPU，默认全部使用
         num_gpus_used = accelerator.state.num_processes
 
         # 单机多卡，每个step总共的batch_size = batch_size_per_gpu * num_gpus_used
@@ -241,6 +243,9 @@ class ChatTrainer:
             epoch_progress = progress.add_task(description='epoch: ', show_info='', total=train_config.epochs)
             steps_progress = progress.add_task(description='steps: ', show_info='', total=steps_per_epoch)
             eval_progress = progress.add_task(description='evaluate: ', show_info='', total=eval_steps, visible=False)
+
+            self.progress = progress
+            self.eval_progress = eval_progress
 
             progress.start()
 
@@ -301,12 +306,13 @@ class ChatTrainer:
                     log.info(info_txt, std_out=False, save_to_file=True)
                     step_loss_list = []
                 
-                if step >= 20:break
+                # if step >= 20:break
             
-            #  end for
+            #  end for batch setps
+            
+            if accelerator.is_main_process: 
+                progress.advance(epoch_progress, advance=1)
 
-            #  end for batch
-            progress.advance(epoch_progress, advance=1)
             model.eval()
             
             cur_bleu4_score = self.evaluate(
@@ -314,9 +320,7 @@ class ChatTrainer:
                 tokenizer=tokenizer,
                 valid_dataloader=valid_dataloader,
                 accelerator=accelerator,
-                eval_progress=eval_progress,
                 eval_steps=eval_steps,
-                progress=progress,
                 )
 
             # save model
@@ -346,8 +350,6 @@ class ChatTrainer:
                 tokenizer: Tokenizer,
                 valid_dataloader: DataLoader, 
                 accelerator: Accelerator,
-                eval_progress: Progress,
-                progress: Progress,
                 eval_steps: int,
             ) -> float:
         
@@ -358,27 +360,31 @@ class ChatTrainer:
         decode_batch = tokenizer.decode_batch
         bleu4_scores = []
 
+        if self.is_win_platfrom:
+            generate = model.generate
+        else:
+            generate = model.module.generate
+
         if accelerator.is_main_process:
-            progress.reset(eval_progress)
-            progress.update(eval_progress, visible=True)
+            self.progress.reset(self.eval_progress)
+            self.progress.update(self.eval_progress, visible=True)
 
         with torch.no_grad():
             for step, batch_data in enumerate(valid_dataloader):
                 
                 if accelerator.is_main_process:
-                    progress.advance(eval_progress, advance=1)
-                    progress.update(eval_progress, show_info='step: {}/{}'.format(step, eval_steps))
+                    self.progress.advance(self.eval_progress, advance=1)
+                    self.progress.update(self.eval_progress, show_info='step: {}/{}'.format(step, eval_steps))
 
                 input_ids, input_mask = batch_data['input_ids'], batch_data['input_mask']
                 target_ids = batch_data['target_ids']
 
-                outputs = model.generate(
+                outputs = generate(
                     input_ids=input_ids,
                     attention_mask=input_mask,
                     max_seq_len=max_seq_len,
                 )
 
-      
                 # gather data from multi-gpus (used when in ddp mode)
                 outputs = accelerator.gather_for_metrics(outputs).cpu().numpy()
                 target_ids = accelerator.gather_for_metrics(target_ids).cpu().numpy()
@@ -396,12 +402,12 @@ class ChatTrainer:
                 bleu4_scores = [get_bleu4_score(reference=target_ids[i], outputs=outputs[i]) for i in range(len(target_ids))]
                 bleu4_scores.extend(bleu4_scores)
 
-                if step >= 5: break
+                # if step >= 5: break
         
         avg_bleu4_score = my_average(bleu4_scores)
         if accelerator.is_main_process:
-            progress.update(eval_progress, show_info='bleu4 score: {}'.format(avg_bleu4_score))
-            progress.update(eval_progress, visible=False)
+            self.progress.update(self.eval_progress, show_info='bleu4 score: {}'.format(avg_bleu4_score))
+            self.progress.update(self.eval_progress, visible=False)
 
         return avg_bleu4_score
 
@@ -411,6 +417,11 @@ class ChatTrainer:
         train_config = self.train_config
         model_config = self.model_config
         log = self.logger
+
+        if self.is_win_platfrom:
+            generate = model.generate
+        else:
+            generate = model.module.generate
 
         test_dataset = MyDataset(
             parquet_file=train_config.train_file,
@@ -486,7 +497,7 @@ class ChatTrainer:
                 target_ids = batch_data['target_ids']
 
                 # s = time.time()
-                outputs = model.generate(
+                outputs = generate(
                     input_ids=input_ids,
                     attention_mask=input_mask,
                     max_seq_len=max_seq_len,
