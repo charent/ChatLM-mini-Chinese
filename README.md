@@ -29,8 +29,12 @@ accelerate launch --multi_gpu --num_processes 2 ./main.py train
 
 
 #### tips
-导出项目依赖的包：
+
 ```bash
+# 导出项目依赖的包：
 pipreqs --encoding "utf-8" --force
+
+# pip 安装torch + cu118
+pip3 install torch --index-url https://download.pytorch.org/whl/cu118
 ```
 
