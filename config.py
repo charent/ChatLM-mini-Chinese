@@ -11,7 +11,7 @@ class TrainConfig:
     learn_rate: float = 0.0001    # 最大 div_factor * learn_rate
     div_factor: int = 50
 
-    mixed_precision: str = "no" #混合精度 ''no','fp16','bf16 or 'fp8'
+    mixed_precision: str = "bf16" #混合精度 ''no','fp16','bf16' or 'fp8'
 
     tokenizer_file: str = PROJECT_ROOT + '/model_save/my_merged_tokenizer.json'
     model_file: str= PROJECT_ROOT + '/model_save/chat_small_t5_{}.pth'
