@@ -25,10 +25,29 @@ def get_free_space_of_disk(folder: str='./') -> float:
     return res_val / (1024 ** 3)
 
 def my_average(arry_list: list[float]) -> float:
+    '''
+    自定义均值计算，空数组返回0.0
+    '''
     
     if len(arry_list) == 0: return 0.0 
     
     return np.average(arry_list)
+
+def get_path_of_suffix_files(root: str, suffix: str, with_create_time: bool=False) -> list:
+    '''
+        获取指定目录下下指定后缀的所有文件的绝对路径
+    '''
+    suffix_files = []
+    for root, _, files in os.walk(root):
+        for file in files:
+            if file.endswith(suffix):
+                full_path = '{}/{}'.format(root, file)
+                if with_create_time:
+                    suffix_files.append( (full_path, os.path.getctime(full_path)) )
+                else:
+                    suffix_files.append(full_path)
+                            
+    return suffix_files
 
 def get_bleu4_score(reference: Union[str, list[str]], outputs: Union[str, list[str]], n_gram: int=4) -> float:
     '''

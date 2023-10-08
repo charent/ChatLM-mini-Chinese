@@ -19,9 +19,9 @@ from tokenizers import Tokenizer
 
 from logger import Logger
 from config import PROJECT_ROOT
+from utils.functions import get_path_of_suffix_files
 
 log = Logger('data_process', save2file=True, file_name=PROJECT_ROOT + '/logs/raw_data_process.log')
-
 
 punctuation = set("!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~.,;《》？！“”‘’@#￥%…&×（）——+【】{};；●，。&～、|\s:：\n")
 en_punctuation = ",().!;:"
@@ -261,17 +261,7 @@ def process_bake_qa(answer_less_word: int=15) -> None:
         
         read_and_write_template(read_file, save_file_name, process_function)
 
-def get_path_of_suffix_files(root: str, suffix: str) -> list:
-    '''
-        获取指定目录下下指定后缀的所有文件的绝对路径
-    '''
-    suffix_files = []
-    for root, _, files in walk(root):
-        for file in files:
-            if file.endswith(suffix):
-                suffix_files.append('{}/{}'.format(root, file))
-                            
-    return suffix_files  
+  
 def repair_line_error_csv_file(raw_csv_file: str, save_suffix: str, read_encoding: str='utf-8', ) -> None:
     '''
         修复csv文件，将文件中换行符替换为\n，字段中的英文字符替换为中文字符

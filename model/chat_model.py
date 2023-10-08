@@ -82,7 +82,7 @@ class TextToTextModel(Module):
             # top_p=0.6,
             top_k=50,
             early_stopping=True,
-            # num_beams=2,
+            num_beams=2,
             # repetition_penalty=2.5,
             # length_penalty=1.0,
             )
