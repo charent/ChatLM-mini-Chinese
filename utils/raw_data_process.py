@@ -10,6 +10,7 @@ from rich import progress
 from rich.table import Table
 from rich.console import Console
 from fastparquet import ParquetFile, write
+import pyarrow.parquet as pq
 from opencc import OpenCC
 from tokenizers import Tokenizer
 
@@ -160,6 +161,10 @@ def read_and_write_template(read_file: str, write_to_file: str, call_back: objec
     log.info('原始文件:{}，共{}行，处理后剩余{}行，保存到文件：{}。耗时：{:.6}s'\
                 .format(read_file, raw_line_cnt, keep_line_cnt, write_to_file, end - start), save_to_file=True)
 
+
+
+#=====================================数据集处理=================================
+
 def process_web_text(keep_start: int=5, answer_less_word: int=10) -> None:
     '''
     处理425万社区问答webtext2019zh知识类数据集
@@ -172,11 +177,11 @@ def process_web_text(keep_start: int=5, answer_less_word: int=10) -> None:
         '/data/raw_data/web_text_zh_valid.json',
     ]
 
-    save_file_names = [
-        '/data/my_data/my_web_text_zh_test.parquet',
-        '/data/my_data/my_web_text_zh_train.parquet',
-        '/data/my_data/my_web_text_zh_valid.parquet',
-    ]
+    save_file_name = PROJECT_ROOT + '/data/my_data/my_web_text_zh.parquet'
+
+    # 后续append写入，存在文件先删除
+    if exists(save_file_name): 
+        assert delete_file(save_file_name)
 
     def process_function(line: str) -> dict:
         item = ujson.loads(line)
@@ -191,22 +196,15 @@ def process_web_text(keep_start: int=5, answer_less_word: int=10) -> None:
         write_dict = {
             "question": question,
             "answer": answer,
-            "star": item['star']
         }
         return write_dict
 
-    for i, file_name in enumerate(file_names):
+    for file_name in file_names:
         read_file = PROJECT_ROOT + file_name
-        write_file = PROJECT_ROOT + save_file_names[i]
-        
-        # 后续append写入，存在文件先删除
-        if exists(write_file): 
-            assert delete_file(write_file)
 
-        read_and_write_template(read_file, write_file, process_function)
-                
-                 
-        
+        read_and_write_template(read_file, save_file_name, process_function)
+
+
 def process_bake_qa(answer_less_word: int=15) -> None:
     '''
     处理147万百度知道知识类数据集
@@ -217,10 +215,10 @@ def process_bake_qa(answer_less_word: int=15) -> None:
         '/data/raw_data/baike_qa_valid.json',
     ]
 
-    save_file_names = [
-        '/data/my_data/my_baike_qa_train.parquet',
-        '/data/my_data/my_baike_qa_valid.parquet',
-    ]
+    save_file_name = PROJECT_ROOT + '/data/my_data/my_baike_qa.parquet'
+    # 后续append写入，存在文件先删除
+    if exists(save_file_name): 
+        assert delete_file(save_file_name)
 
     def process_function(line: str) -> dict:
         item = ujson.loads(line)
@@ -258,16 +256,10 @@ def process_bake_qa(answer_less_word: int=15) -> None:
 
         return write_dict
 
-    for i, file_name in enumerate(file_names):
+    for file_name in file_names:
         read_file = PROJECT_ROOT + file_name
-        write_file = PROJECT_ROOT + save_file_names[i]
         
-        # 后续append写入，存在文件先删除
-        if exists(write_file): 
-            assert delete_file(write_file)
-
-        read_and_write_template(read_file, write_file, process_function)
-
+        read_and_write_template(read_file, save_file_name, process_function)
 
 def get_path_of_suffix_files(root: str, suffix: str) -> list:
     '''
@@ -322,11 +314,15 @@ def process_chinese_medical_datasets(answer_less_word: int=15) -> None:
     raw_data_files = get_path_of_suffix_files(raw_dataset_dir, suffix)
 
     # 获取要保存的文件名
-    save_files = []
-    for file_name in raw_data_files:
-        file_name = file_name.split('/')[-1][0: -(len(suffix))] + '.parquet'
-        file_name = PROJECT_ROOT  + '/data/my_data/' + file_name
-        save_files.append(file_name)
+    save_file = PROJECT_ROOT + '/data/my_data/my_chinese_medical_dialogue.parquet'
+    # for file_name in raw_data_files:
+    #     file_name = file_name.split('/')[-1][0: -(len(suffix))] + '.parquet'
+    #     file_name = PROJECT_ROOT  + '/data/my_data/' + file_name
+    #     save_files.append(file_name)
+
+    # 后续append写入，存在文件先删除
+    if exists(save_file): 
+        assert delete_file(save_file)
     
     def process_function(line: str) -> dict:
         # department,title,ask,answer
@@ -369,14 +365,9 @@ def process_chinese_medical_datasets(answer_less_word: int=15) -> None:
         return write_dict
 
     for i, file_name in enumerate(raw_data_files):
-        read_file = file_name
-        write_file = save_files[i]
-        
-        # 后续append写入，存在文件先删除
-        if exists(write_file): 
-            assert delete_file(write_file)
+        read_file = file_name        
 
-        read_and_write_template(read_file, write_file, process_function)
+        read_and_write_template(read_file, save_file, process_function)
 
 
 def process_finace_dataset(question_less_word: int=10, answer_less_word: int=15) -> None:
@@ -514,13 +505,14 @@ def process_zhihu_kol_dataset(question_less_word: int=4, answer_less_word: int=1
     log.info('save file to: {}, 全部数据共{}行，清洗后剩余{}行'.format(save_file, all_cnt, keep_cnt), save_to_file=True)
 
 
-def process_belle_knowledge_enhanced_data_set(answer_less_words: int=15, group_cnt: int=10000) -> None:
+def process_belle_knowledge_enhanced_dataset(answer_less_words: int=15, group_cnt: int=10000) -> None:
     '''
     处理belle开源的知识增强数据集
     '''
     file_names = [
-        'data/raw_data/bell_open_source/train_2M_CN.json',
-        'data/raw_data/bell_open_source/Belle_open_source_1M.json',
+        '/data/raw_data/bell_open_source/train_2M_CN.json',
+        '/data/raw_data/bell_open_source/train_0.8M_CN.json',
+        '/data/raw_data/bell_open_source/Belle_open_source_1M.json',
     ]
 
     save_file = PROJECT_ROOT + '/data/my_data/my_belll_3M_cn.parquet'
@@ -694,11 +686,12 @@ def process_zh_wiki_data_to_datset(groups_cnt: int=10000, max_len: int=512, seed
             if question != '' and not line.endswith('：'):
                 # 其实，pre_line_len已经是len(line.strip())了，如果len(line.strip())=0，既是当前行是0，则不管答案长度够不够，都需要保存了
                 if len(answer) + len(line) <= max_len and pre_line_len != 0: 
-                    answer += line
+                    answer = '{}{}'.format(answer, line)
                 elif len(answer) + len(line) > max_len or pre_line_len == 0:
                     # 长度超了或者当前的百科已经结束，保存一条样例
                     keep_cnt += 1
-                    append({'question': question, 'answer': answer})
+                    answer = '{}{}'.format(answer, line)
+                    append({'question': question, 'answer': ''.join(answer[0: max_len])})
                     question = ''
                     answer = ''
 
@@ -723,7 +716,7 @@ def process_zh_wiki_data_to_datset(groups_cnt: int=10000, max_len: int=512, seed
 
 
 
-def merge_dataset_as_single_file(groups_cnt: int=50000, max_len: int=512, cut_max_len: bool=False) -> None:
+def merge_dataset_as_single_file(groups_cnt: int=50000, max_len: int=512, min_len: int=3, cut_max_len: bool=False) -> None:
     '''
     将多个数据集合并为一个数据集
     '''
@@ -742,24 +735,28 @@ def merge_dataset_as_single_file(groups_cnt: int=50000, max_len: int=512, cut_ma
     for file in from_parquet_files:
         print('process file: {}'.format(file))
 
-        pf = ParquetFile(file)
-        for pf_chunk in progress.track(pf):
-            for rows in pf_chunk.iter_row_groups():
-                for question, answer in zip(rows['question'], rows['answer']):
-                    all_cnt += 1
+        parquet_table = pq.read_table(file)
+     
+        for question, answer in progress.track(zip(parquet_table['question'], parquet_table['answer']), total=parquet_table.num_rows):
 
-                    if cut_max_len and (len(question) > max_len or len(answer) > max_len):
-                        question = question[0: max_len]
-                        answer = answer[0: max_len]
+            question, answer = question.as_py(), answer.as_py()
+            all_cnt += 1
 
-                    keep_cnt += 1
-                    append({'question': question , 'answer': answer})
+            if len(question) < min_len or len(answer) < min_len:
+                continue
 
-                    if len(cur_rows) >= groups_cnt:
-                        df = pd.DataFrame(cur_rows)
-                        write_single_parquet_file(save_file, df)
-                        cur_rows = []
-                        append = cur_rows.append
+            if cut_max_len and (len(question) > max_len or len(answer) > max_len):
+                question = question[0: max_len]
+                answer = answer[0: max_len]
+
+            keep_cnt += 1
+            append({'question': question , 'answer': answer})
+
+            if len(cur_rows) >= groups_cnt:
+                df = pd.DataFrame(cur_rows)
+                write_single_parquet_file(save_file, df)
+                cur_rows = []
+                append = cur_rows.append
         
     # 处理末尾部分
     if len(cur_rows) > 0:
@@ -777,7 +774,7 @@ def shuffle_parquet_dataset(parquet_file: str, shuffle_file: str, seed: int=2333
         raise Exception('can not find parquet file: {}'.format(parquet_file))
     
     print('start shuffle...')
-    pf = ParquetFile(parquet_file)
+    pf =  pq.read_table(parquet_file)
     df = pf.to_pandas()
     df = df.sample(frac=1.0, replace=False, random_state=seed, axis=0)
     
@@ -878,32 +875,32 @@ def split_train_valid_test_datasets(source_parquet_file: str, max_len: int=320, 
 
     train, test, valid = [], [], []
 
-    source_pf = ParquetFile(source_parquet_file)
-    for pf_chunk in progress.track(source_pf):
-        for rows in pf_chunk.iter_row_groups():
-            for question, answer in zip(rows['question'], rows['answer']):
-                rand = np.random.random()
+    parquet_table =  pq.read_table(source_parquet_file)
 
-                cur_data = {'question': question[0: max_len] , 'answer': answer[0: max_len]}
+    for question, answer in progress.track(zip(parquet_table['question'], parquet_table['answer']), total=parquet_table.num_rows):
+        
+        question, answer = question.as_py(), answer.as_py()
+        rand = np.random.random()
+        cur_data = {'question': ''.join(question[0: max_len]) , 'answer': ''.join(answer[0: max_len])}
 
-                if 0 <= rand < train_ratio:
-                    train.append(cur_data)
-                elif train_ratio <= rand  < train_ratio + test_ratio:
-                    test.append(cur_data)
-                else:
-                    valid.append(cur_data)
-                
-                if len(train) >= groups_cnt:
-                    write_single_parquet_file(train_parquet_file, pd.DataFrame(train))
-                    train = []
-                
-                if len(test) >= groups_cnt:
-                    write_single_parquet_file(test_parquet_file, pd.DataFrame(test))
-                    test = []
-                
-                if len(valid) >= groups_cnt:
-                    write_single_parquet_file(valid_parquet_file, pd.DataFrame(valid))
-                    valid = []
+        if 0 <= rand < train_ratio:
+            train.append(cur_data)
+        elif train_ratio <= rand  < train_ratio + test_ratio:
+            test.append(cur_data)
+        else:
+            valid.append(cur_data)
+        
+        if len(train) >= groups_cnt:
+            write_single_parquet_file(train_parquet_file, pd.DataFrame(train))
+            train = []
+        
+        if len(test) >= groups_cnt:
+            write_single_parquet_file(test_parquet_file, pd.DataFrame(test))
+            test = []
+        
+        if len(valid) >= groups_cnt:
+            write_single_parquet_file(valid_parquet_file, pd.DataFrame(valid))
+            valid = []
                 
 
     if len(train) > 0:
@@ -1010,22 +1007,24 @@ if __name__ == '__main__':
     # 3.
     # process_chinese_medical_datasets(answer_less_word=15)
 
-    # 4.
+    # 4. 
     # process_finace_dataset(question_less_word=10, answer_less_word=15)
 
     # 5.
     # process_zhihu_kol_dataset(question_less_word=4, answer_less_word=10)
 
     # 6.
-    # process_belle_knowledge_enhanced_data_set(answer_less_words=15)
+    # process_belle_knowledge_enhanced_dataset(answer_less_words=15)
+
+    # convert_wiki_to_simple_zh()
 
     # 7.
     # process_zh_wiki_data_to_datset(groups_cnt=10000, max_len=512)
 
-    # convert_wiki_to_simple_zh()
+    #=================================================================
 
     # merge
-    # merge_dataset_as_single_file(groups_cnt=50000, cut_max_len=False)
+    # merge_dataset_as_single_file(groups_cnt=50000, min_len=3, cut_max_len=False)
 
     # # shuffle
     # shuffle_parquet_dataset(
