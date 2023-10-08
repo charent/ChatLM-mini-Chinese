@@ -67,26 +67,24 @@ class ChatTrainer:
         '''
         进程退出时的操作，保存模型
         '''
-        ask = "are you sure to exit this process?  Yes (y) or No (n)"
-        if self.accelerator:
+        if self.accelerator and self.accelerator.is_main_process:
+            ask = "are you sure to exit this process?  Yes (y) or No (n)"
             self.accelerator.print(ask)
-        else:
-            print(ask)
+            ins = input()
+            
+            if ins.lower() in ('yes', 'y'):
 
-        ins = input()
-        
-        if ins.lower() in ('yes', 'y'):
-            if self.accelerator:
                 suffix =  'exit_save_{}'.format(str(time.strftime('%Y%m%d%H%M%S', time.localtime())))
                 self.accelerator.wait_for_everyone()
                 self.save_model(suffix)
 
                 self.accelerator.print('model ckeck point has been saved!')
+                sys.exit(0)
             else:
-                print('process not in trainingg, exit.')
-            sys.exit(0)
+                print('do nothing!')
         else:
-            print('do nothing!')
+            print('process not in trainingg, exit.')
+            sys.exit(0)
 
     def save_model(self, suffix: Union[str, int]) -> None:
         '''保存模型到文件
@@ -230,117 +228,117 @@ class ChatTrainer:
 
         log_loss_interval_n = 50 # 每间隔 n 步保存一次loss到文件
 
-        with Progress(TextColumn("[progress.description]{task.description}"),
-              BarColumn(),
-              TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-              TimeRemainingColumn(),
-              TimeElapsedColumn(),
-              TextColumn("[bold blue]{task.fields[show_info]}"),
-             ) as progress:
+        # 添加进度条，只在主进程更新
+        if accelerator.is_main_process:
+            progress = Progress(TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                TimeRemainingColumn(),
+                TimeElapsedColumn(),
+                TextColumn("[bold blue]{task.fields[show_info]}"),
+                )
+            
+            epoch_progress = progress.add_task(description='epoch: ', show_info='', total=train_config.epochs)
+            steps_progress = progress.add_task(description='steps: ', show_info='', total=steps_per_epoch)
+            eval_progress = progress.add_task(description='evaluate: ', show_info='', total=eval_steps, visible=False)
+
+            progress.start()
+
+        for epoch in range(train_config.epochs):
             
             if accelerator.is_main_process:
-                epoch_progress = progress.add_task(description='epoch: ', show_info='', total=train_config.epochs)
-                steps_progress = progress.add_task(description='steps: ', show_info='', total=steps_per_epoch)
-                eval_progress = progress.add_task(description='evaluate: ', show_info='', total=eval_steps, visible=False)
+                epoch_show_txt = 'epoch: {}/{}, avg_loss: {:.6f}, best_epoch: {}, best_bleu: {}'.format(
+                    epoch, train_config.epochs, my_average(epoch_loss_list), best_epoch, best_bleu4
+                )
+                progress.update(epoch_progress, show_info=epoch_show_txt)
+                progress.reset(steps_progress)
 
-            for epoch in range(train_config.epochs):
+            epoch_loss_list = []
+            model.train()
+            
+            for step, batch_data in enumerate(train_dataloader):
+
+                input_ids, input_mask = batch_data['input_ids'], batch_data['input_mask']
+                # target_ids, target_mask = batch_data['target_ids'], batch_data['target_mask']
+                target_ids = batch_data['target_ids']
+
+                # for t5 model, all labels set to `-100` are ignored (masked)
+                target_ids[target_ids == decoder_start_token_id] = -100
+
+                # print("inputs:{}, mask:{}, target_ids:{}".format(input_ids.shape, input_mask.shape, target_ids.shape))
                 
-                if accelerator.is_main_process:
-                    epoch_show_txt = 'epoch: {}/{}, avg_loss: {:.6f}, best_epoch: {}, best_bleu: {}'.format(
-                        epoch, train_config.epochs, my_average(epoch_loss_list), best_epoch, best_bleu4
-                    )
-                    progress.update(epoch_progress, show_info=epoch_show_txt)
-                    progress.reset(steps_progress)
+                outputs = model(
+                    input_ids=input_ids,
+                    input_mask=input_mask,
+                    labels=target_ids
+                )
 
+                loss = outputs.loss.mean()
+                loss_cpu = loss.detach().cpu().numpy()
+                
+                step_loss_list.append(loss_cpu)
+                epoch_loss_list.append(loss_cpu)
+
+                # attention here! loss.backward()
+                accelerator.backward(loss) 
+                
+                optimizer.step()
+                lr_scheduler.step()
+                optimizer.zero_grad()
+                
+                # 更新进度条
+                if accelerator.is_main_process:
+                    step_show_txt = 'step: {}/{}, loss: {:.6f}'.format(step, steps_per_epoch, loss_cpu)
+                    progress.advance(steps_progress, advance=1)
+                    progress.update(steps_progress, show_info=step_show_txt)
+
+                # 保存 loss 到文件
+                if step % log_loss_interval_n == 0 or step == eval_steps - 1:
+                    
+                    info_txt = 'training loss: epoch:{}, step:{}, loss:{}, device:{}'.\
+                        format(epoch, step, my_average(step_loss_list), str(accelerator.device))
+                    
+                    log.info(info_txt, std_out=False, save_to_file=True)
+                    step_loss_list = []
+                
+                if step >= 20:break
+            
+            #  end for
+
+            #  end for batch
+            progress.advance(epoch_progress, advance=1)
+            model.eval()
+            
+            cur_bleu4_score = self.evaluate(
+                model=model,
+                tokenizer=tokenizer,
+                valid_dataloader=valid_dataloader,
+                accelerator=accelerator,
+                eval_progress=eval_progress,
+                eval_steps=eval_steps,
+                progress=progress,
+                )
+
+            # save model
+            if cur_bleu4_score >= best_bleu4:
+                best_bleu4 = cur_bleu4_score
+                best_epoch = epoch
+
+                accelerator.wait_for_everyone()
+                
+                if accelerator.is_main_process: 
+                    # 最多保存最近keep_latest_n_ckp个模型文件
+                    # self.delete_early_checkpoint(epoch=epoch, keep_latest_n=train_config.keep_latest_n_ckp)
+                    self.save_model(epoch)
+                    
+
+            # 每个epoch打印一下日志
+            if accelerator.is_main_process:
+                info_txt = 'epoch log: epoch:{}, avg_loss:{}, cur_bleu4:{}, best_bleu4:{}, best_epoch:{}'.\
+                            format(epoch, my_average(epoch_loss_list), cur_bleu4_score, best_bleu4, best_epoch)
+                # log.info(info_txt, std_out=True, save_to_file=True)
+                self.print_and_log(info_txt, accelerator)
                 epoch_loss_list = []
-                model.train()
-                
-                for step, batch_data in enumerate(train_dataloader):
-                    if batch_data is None:
-                        print('epoch:{}, step:{}'.format(epoch, step))
-                        continue
-
-                    input_ids, input_mask = batch_data['input_ids'], batch_data['input_mask']
-                    # target_ids, target_mask = batch_data['target_ids'], batch_data['target_mask']
-                    target_ids = batch_data['target_ids']
-
-                    # for t5 model, all labels set to `-100` are ignored (masked)
-                    target_ids[target_ids == decoder_start_token_id] = -100
-
-                    # print("inputs:{}, mask:{}, target_ids:{}".format(input_ids.shape, input_mask.shape, target_ids.shape))
-                    
-                    outputs = model(
-                        input_ids=input_ids,
-                        input_mask=input_mask,
-                        labels=target_ids
-                    )
-
-                    loss = outputs.loss.mean()
-                    loss_cpu = loss.detach().cpu().numpy()
-                    
-                    step_loss_list.append(loss_cpu)
-                    epoch_loss_list.append(loss_cpu)
-
-                    # attention here! loss.backward()
-                    accelerator.backward(loss) 
-                    
-                    optimizer.step()
-                    lr_scheduler.step()
-                    optimizer.zero_grad()
-                   
-                    # 更新进度条
-                    if accelerator.is_main_process:
-                        step_show_txt = 'step: {}/{}, loss: {:.6f}'.format(step, steps_per_epoch, loss_cpu)
-                        progress.advance(steps_progress, advance=1)
-                        progress.update(steps_progress, show_info=step_show_txt)
-
-                    # 保存 loss 到文件
-                    if step % log_loss_interval_n == 0 or step == eval_steps - 1:
-                        
-                        info_txt = 'training loss: epoch:{}, step:{}, loss:{}, device:{}'.\
-                            format(epoch, step, my_average(step_loss_list), str(accelerator.device))
-                        
-                        log.info(info_txt, std_out=False, save_to_file=True)
-                        step_loss_list = []
-                    
-                    # if step >= 20:break
-                
-                #  end for
-
-                #  end for batch
-                progress.advance(epoch_progress, advance=1)
-                model.eval()
-                
-                cur_bleu4_score = self.evaluate(
-                    model=model,
-                    tokenizer=tokenizer,
-                    valid_dataloader=valid_dataloader,
-                    accelerator=accelerator,
-                    eval_progress=eval_progress,
-                    eval_steps=eval_steps,
-                    progress=progress,
-                    )
-
-                # save model
-                if cur_bleu4_score >= best_bleu4:
-                    best_bleu4 = cur_bleu4_score
-                    best_epoch = epoch
-
-                    accelerator.wait_for_everyone()
-                    
-                    if accelerator.is_main_process: 
-                        # 最多保存最近keep_latest_n_ckp个模型文件
-                        # self.delete_early_checkpoint(epoch=epoch, keep_latest_n=train_config.keep_latest_n_ckp)
-                        self.save_model(epoch)
-                        
-
-                # 每个epoch打印一下日志
-                if accelerator.is_main_process:
-                    info_txt = 'epoch log: epoch:{}, avg_loss:{}, cur_bleu4:{}, best_bleu4:{}, best_epoch:{}'.\
-                                format(epoch, my_average(epoch_loss_list), cur_bleu4_score, best_bleu4, best_epoch)
-                    # log.info(info_txt, std_out=True, save_to_file=True)
-                    self.print_and_log(info_txt, accelerator)
-                    epoch_loss_list = []
 
 
     def evaluate(self, 
@@ -398,7 +396,7 @@ class ChatTrainer:
                 bleu4_scores = [get_bleu4_score(reference=target_ids[i], outputs=outputs[i]) for i in range(len(target_ids))]
                 bleu4_scores.extend(bleu4_scores)
 
-                # if step >= 10: break
+                if step >= 5: break
         
         avg_bleu4_score = my_average(bleu4_scores)
         if accelerator.is_main_process:
@@ -465,55 +463,56 @@ class ChatTrainer:
         max_seq_len = self.train_config.max_seq_len
         model.eval()
 
-        with Progress(TextColumn("[progress.description]{task.description}"),
-              BarColumn(),
-              TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-              TimeRemainingColumn(),
-              TimeElapsedColumn(),
-              TextColumn("[bold blue]{task.fields[show_info]}"),
-             ) as progress:
+        if accelerator.is_main_process:
+            progress = Progress(TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                TimeRemainingColumn(),
+                TimeElapsedColumn(),
+                TextColumn("[bold blue]{task.fields[show_info]}"),
+                )
+                
+            steps_progress = progress.add_task(description='steps: ', show_info='', total=steps)
+            progress.start()
             
-            if accelerator.is_main_process:
-                steps_progress = progress.add_task(description='steps: ', show_info='', total=steps)
-            
-            with torch.no_grad():
-                for step, batch_data in enumerate(test_dataloader):
+        with torch.no_grad():
+            for step, batch_data in enumerate(test_dataloader):
 
-                    if accelerator.is_main_process:
-                        progress.advance(steps_progress, advance=1)
-                        progress.update(steps_progress, show_info='step: {}/{}'.format(step, steps))
+                if accelerator.is_main_process:
+                    progress.advance(steps_progress, advance=1)
+                    progress.update(steps_progress, show_info='step: {}/{}'.format(step, steps))
 
-                    input_ids, input_mask = batch_data['input_ids'], batch_data['input_mask']
-                    target_ids = batch_data['target_ids']
+                input_ids, input_mask = batch_data['input_ids'], batch_data['input_mask']
+                target_ids = batch_data['target_ids']
 
-                    # s = time.time()
-                    outputs = model.generate(
-                        input_ids=input_ids,
-                        attention_mask=input_mask,
-                        max_seq_len=max_seq_len,
-                    )
-                    # accelerator.print('generate used: {}'.format(time.time() - s))
+                # s = time.time()
+                outputs = model.generate(
+                    input_ids=input_ids,
+                    attention_mask=input_mask,
+                    max_seq_len=max_seq_len,
+                )
+                # accelerator.print('generate used: {}'.format(time.time() - s))
 
-                    # gather data from multi-gpus (used when in ddp mode)
-                    outputs = accelerator.gather_for_metrics(outputs).cpu().numpy()
-                    target_ids = accelerator.gather_for_metrics(target_ids).cpu().numpy()
-                    
-                    outputs = decode_batch(outputs,  skip_special_tokens=True)
-                    target_ids = decode_batch(target_ids, skip_special_tokens=True )
+                # gather data from multi-gpus (used when in ddp mode)
+                outputs = accelerator.gather_for_metrics(outputs).cpu().numpy()
+                target_ids = accelerator.gather_for_metrics(target_ids).cpu().numpy()
+                
+                outputs = decode_batch(outputs,  skip_special_tokens=True)
+                target_ids = decode_batch(target_ids, skip_special_tokens=True )
 
-                    # 删除decode出来字符间的空格
-                    outputs = [sentance.replace(' ', '') for sentance in outputs]
-                    target_ids = [sentance.replace(' ', '') for sentance in target_ids]
+                # 删除decode出来字符间的空格
+                outputs = [sentance.replace(' ', '') for sentance in outputs]
+                target_ids = [sentance.replace(' ', '') for sentance in target_ids]
 
-                    # print('outputs: {}'.format(outputs[0:5]))
-                    # print('target_ids: {}'.format(target_ids[0:5]))
-                    # print()
+                # print('outputs: {}'.format(outputs[0:5]))
+                # print('target_ids: {}'.format(target_ids[0:5]))
+                # print()
 
 
-                    bleu4_scores = [get_bleu4_score(reference=target_ids[i], outputs=outputs[i]) for i in range(len(target_ids))]
-                    bleu4_scores.extend(bleu4_scores)
+                bleu4_scores = [get_bleu4_score(reference=target_ids[i], outputs=outputs[i]) for i in range(len(target_ids))]
+                bleu4_scores.extend(bleu4_scores)
 
-                    # if step >= 10: break
+                # if step >= 10: break
         
         avg_bleu4_score = my_average(bleu4_scores)
         if accelerator.is_main_process:
