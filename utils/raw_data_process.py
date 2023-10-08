@@ -3,6 +3,9 @@ import re
 from os.path import dirname, abspath, exists, isdir
 from os import remove, mkdir, walk
 import time
+from collections import defaultdict
+
+from matplotlib import pyplot as plt
 import codecs, csv
 import pandas as pd 
 import numpy as np
@@ -981,6 +984,48 @@ def text_dataset_to_ids_dataset(tokenizer_file: str, max_len: int=320, pad_token
                     write_single_parquet_file(save_ids_files[i], df)
 
 
+def dataset_length_cnt() -> None:
+
+    dataset_file = PROJECT_ROOT +  '/data/my_dataset.shuffle.parquet'
+    parquet_table = pq.read_table(dataset_file)
+
+    que_len_dict, ans_len_dict = defaultdict(int), defaultdict(int)
+    
+    for question, answer in progress.track(zip(parquet_table['question'], parquet_table['answer']), total=parquet_table.num_rows):
+
+        question, answer = question.as_py(), answer.as_py()
+
+        que_len_dict[len(question)] += 1
+        ans_len_dict[len(answer)] += 1
+
+    que_len, ans_len = [], []
+    for k, v in que_len_dict.items():
+        que_len.append([k, v])
+    for k, v in ans_len_dict.items():
+        ans_len.append([k, v])
+    
+    que_len.sort(key=lambda x: x[0])
+    ans_len.sort(key=lambda x: x[0])
+    
+    que_df = pd.DataFrame(que_len, columns=['length', 'count'])
+    ans_df = pd.DataFrame(ans_len, columns=['length', 'count'])
+
+    plt.figure()                 
+    plt.plot(que_df['count'],'b',label = 'count')
+    plt.ylabel('length')
+    plt.xlabel('count')
+    plt.legend()        #个性化图例（颜色、形状等）
+    plt.show()
+
+    plt.figure()                 
+    plt.plot(ans_df['count'],'b',label = 'count')
+    plt.ylabel('length')
+    plt.xlabel('count')
+    plt.legend()        #个性化图例（颜色、形状等）
+    plt.show()
+
+
+
 if __name__ == '__main__':
 
     processed_file_dir = PROJECT_ROOT + '/data/my_data'
@@ -1036,6 +1081,9 @@ if __name__ == '__main__':
     # text_dataset_to_ids_dataset(tokenizer_file=PROJECT_ROOT + '/model_save/my_merged_tokenizer.json', max_len=320)
 
     # count_my_parquet_data(PROJECT_ROOT + '/data/my_dataset.parquet')
+
+    dataset_length_cnt()
+
     count_my_parquet_data(PROJECT_ROOT + '/data/')
 
 
