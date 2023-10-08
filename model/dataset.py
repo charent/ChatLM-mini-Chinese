@@ -75,7 +75,7 @@ class MyDataset(Dataset):
         '''
         if self.keep_in_memory:
             data = self.data
-            question, answer = data.iloc[index][0], data.iloc[index][1]
+            question, answer = data.iloc[index].question, data.iloc[index].answer
         else:
             question, answer = next(self.sample_generator)
 

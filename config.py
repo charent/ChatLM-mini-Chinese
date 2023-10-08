@@ -5,8 +5,8 @@ PROJECT_ROOT: str = abspath(dirname(__file__))
 
 @dataclass
 class TrainConfig:
-    epochs: int = 6
-    batch_size_per_gpu: int = 20
+    epochs: int = 8
+    batch_size_per_gpu: int = 24
     
     learn_rate: float = 0.0001    # 最大 div_factor * learn_rate
     div_factor: int = 50
@@ -27,7 +27,7 @@ class TrainConfig:
 
     seed: int = 23333
     dataloader_buffer_size: int = 50000
-    max_seq_len: int = 256                      # 最大句子长度，默认：256
+    max_seq_len: int = 288                      # 最大句子长度，默认：256
 
 
 #==================================================================
