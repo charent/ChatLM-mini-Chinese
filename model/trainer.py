@@ -1,6 +1,8 @@
 import signal
 import sys
+import os
 import time
+from typing import Union
 
 from psutil import virtual_memory
 import numpy as np
@@ -19,7 +21,13 @@ from model.chat_model import TextToTextModel
 from utils.logger import Logger
 from model.dataset import MyDataset
 from config import PROJECT_ROOT, TrainConfig, T5ModelConfig
-from utils.functions import get_bleu4_score, save_model_config, get_free_space_of_disk, my_average
+from utils.functions import (
+    get_bleu4_score, 
+    save_model_config, 
+    get_free_space_of_disk, 
+    my_average,
+    get_path_of_suffix_files,
+)
 
 
 def transformers_trainer(config: TrainConfig) -> None:
@@ -80,11 +88,45 @@ class ChatTrainer:
         else:
             print('do nothing!')
 
-    def save_model(self, suffix: str) -> None:
+    def save_model(self, suffix: Union[str, int]) -> None:
+        '''保存模型到文件
+        '''
         if self.model and self.accelerator:
             unwrap_model = self.accelerator.unwrap_model(self.model)
             model_dict =  self.accelerator.get_state_dict(unwrap_model)
             torch.save(model_dict, self.train_config.model_file.format(suffix))
+
+    
+    def delete_early_checkpoint(self, epoch: int, keep_latest_n: int=3,) -> None:
+        '''
+        删除最早的模型，最保留最近keep_latest_n个模型文件
+        '''
+        model_save_path = self.train_config.model_file
+        model_save_path = model_save_path.replace('\\', '/')    # 针对win的路径，将\替换为/
+        model_save_path = '/'.join(model_save_path.split('/')[0: -1])   # 删除末尾文件名后缀
+        
+        model_files = get_path_of_suffix_files(model_save_path, suffix='.pth', with_create_time=True)
+        
+        # 进程异常退出保存模型文件不在删除范围
+        train_save_model_fils = []
+        for item in model_files:
+            if 'exit_save' not in item[0]:
+
+                # 大于当前epoch的文件不不删除
+                f_epoch = int(item[0].split('.')[-2])
+                if epoch >= f_epoch:
+                    print(epoch, f_epoch, item)
+                    train_save_model_fils.append(item)
+
+        train_save_model_fils.sort(key=lambda x: x[1])  # 按照时间从小到大排序
+
+        if len(train_save_model_fils) <= keep_latest_n:
+            return
+        
+        to_delete_files = train_save_model_fils[0: -keep_latest_n]
+        for item in to_delete_files:
+            os.remove(item[0])
+
     
     def train(self, ) -> None:
         '''
@@ -287,9 +329,10 @@ class ChatTrainer:
                     accelerator.wait_for_everyone()
                     
                     if accelerator.is_main_process: 
-                        unwrap_model = accelerator.unwrap_model(model)
-                        model_dict = accelerator.get_state_dict(unwrap_model)
-                        torch.save(model_dict, train_config.model_file.format(epoch))
+                        # 最多保存最近keep_latest_n_ckp个模型文件
+                        # self.delete_early_checkpoint(epoch=epoch, keep_latest_n=train_config.keep_latest_n_ckp)
+                        self.save_model(epoch)
+                        
 
                 # 每个epoch打印一下日志
                 if accelerator.is_main_process:

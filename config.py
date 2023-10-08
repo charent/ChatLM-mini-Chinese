@@ -14,7 +14,7 @@ class TrainConfig:
     mixed_precision: str = "bf16" #混合精度 ''no','fp16','bf16' or 'fp8'
 
     tokenizer_file: str = PROJECT_ROOT + '/model_save/my_merged_tokenizer.json'
-    model_file: str= PROJECT_ROOT + '/model_save/chat_small_t5_{}.pth'
+    model_file: str= PROJECT_ROOT + '/model_save/chat_small_t5.{}.pth'
     model_config_file: str= PROJECT_ROOT + '/model_save/model_config.json'
     train_file: str = PROJECT_ROOT + '/data/my_train_dataset.parquet'
     validation_file: str = PROJECT_ROOT + '/data/my_valid_dataset.parquet'
@@ -22,6 +22,8 @@ class TrainConfig:
 
     # dataset_cache_dir: str = PROJECT_ROOT + '/data/.cache'
     # trainer_log_file: str = PROJECT_ROOT + '/logs/trainer.log'
+
+    keep_latest_n_ckp: int = 8                  # 训练过程中，最多保留多少个分数最好的模型文件
 
     seed: int = 23333
     dataloader_buffer_size: int = 50000
