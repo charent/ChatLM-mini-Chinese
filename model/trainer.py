@@ -3,7 +3,6 @@ import sys
 import os
 import time
 from typing import Union
-import platform
 
 from psutil import virtual_memory
 import numpy as np
@@ -61,7 +60,6 @@ class ChatTrainer:
 
         self.model = None
         self.accelerator = None
-        self.is_win_platfrom = True if platform.system() == 'Windows' else False
 
         signal.signal(signal.SIGINT, self.process_exit_handler)
     
@@ -360,11 +358,6 @@ class ChatTrainer:
         decode_batch = tokenizer.decode_batch
         bleu4_scores = []
 
-        if self.is_win_platfrom:
-            generate = model.generate
-        else:
-            generate = model.module.generate
-
         if accelerator.is_main_process:
             self.progress.reset(self.eval_progress)
             self.progress.update(self.eval_progress, visible=True)
@@ -379,7 +372,7 @@ class ChatTrainer:
                 input_ids, input_mask = batch_data['input_ids'], batch_data['input_mask']
                 target_ids = batch_data['target_ids']
 
-                outputs = generate(
+                outputs = accelerator.unwrap_model(model).generate(
                     input_ids=input_ids,
                     attention_mask=input_mask,
                     max_seq_len=max_seq_len,
@@ -417,11 +410,6 @@ class ChatTrainer:
         train_config = self.train_config
         model_config = self.model_config
         log = self.logger
-
-        if self.is_win_platfrom:
-            generate = model.generate
-        else:
-            generate = model.module.generate
 
         test_dataset = MyDataset(
             parquet_file=train_config.train_file,
@@ -497,7 +485,7 @@ class ChatTrainer:
                 target_ids = batch_data['target_ids']
 
                 # s = time.time()
-                outputs = generate(
+                outputs = accelerator.unwrap_model(model).generate(
                     input_ids=input_ids,
                     attention_mask=input_mask,
                     max_seq_len=max_seq_len,
