@@ -66,6 +66,9 @@ class ChatTrainer:
         signal.signal(signal.SIGINT, self.process_exit_handler)
 
         self.is_win_platform = True if platform.system().lower() == 'windows' else False
+
+        torch.manual_seed(train_config.seed)
+        torch.cuda.manual_seed_all(train_config.seed)
     
     def process_exit_handler(self, signal_received, frame) -> None:
         '''
@@ -176,7 +179,7 @@ class ChatTrainer:
         train_dataloader = DataLoader(
             train_dataset, 
             batch_size=batch_size,  
-            shuffle=False,
+            shuffle=True,
             collate_fn=train_dataset.collate_fn,
             pin_memory=pin_memory,
             num_workers=num_workers,
