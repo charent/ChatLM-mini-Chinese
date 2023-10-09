@@ -3,6 +3,7 @@ import sys
 import os
 import time
 from typing import Union
+import platform 
 
 from psutil import virtual_memory
 import numpy as np
@@ -11,6 +12,7 @@ import torch
 from rich.progress import Progress, TextColumn, BarColumn, TimeElapsedColumn, TimeRemainingColumn
 from transformers import TrainingArguments, Trainer
 from tokenizers import Tokenizer
+from torch_optimizer import Adafactor
 
 # import accelerate
 from accelerate import Accelerator
@@ -62,6 +64,8 @@ class ChatTrainer:
         self.accelerator = None
 
         signal.signal(signal.SIGINT, self.process_exit_handler)
+
+        self.is_win_platform = True if platform.system().lower() == 'windows' else False
     
     def process_exit_handler(self, signal_received, frame) -> None:
         '''
@@ -75,7 +79,6 @@ class ChatTrainer:
             if ins.lower() in ('yes', 'y'):
 
                 suffix =  'exit_save_{}'.format(str(time.strftime('%Y%m%d%H%M%S', time.localtime())))
-                self.accelerator.wait_for_everyone()
                 self.save_model(suffix)
 
                 self.accelerator.print('model ckeck point has been saved!')
@@ -90,6 +93,7 @@ class ChatTrainer:
         '''保存模型到文件
         '''
         if self.model and self.accelerator:
+            self.accelerator.wait_for_everyone()
             unwrap_model = self.accelerator.unwrap_model(self.model)
             model_dict =  self.accelerator.get_state_dict(unwrap_model)
             torch.save(model_dict, self.train_config.model_file.format(suffix))
@@ -144,6 +148,10 @@ class ChatTrainer:
                  .format(unuse_mem, unuse_disk, keep_in_memory), save_to_file=True)
         log.info('loading datasets ...')
 
+        # args for dataloader
+        pin_memory = False if self.is_win_platform else True
+        num_workers = 0 if self.is_win_platform else 1
+
         train_dataset = MyDataset(
             parquet_file=train_config.train_file,
             tokenizer_file=train_config.tokenizer_file,
@@ -158,24 +166,37 @@ class ChatTrainer:
         )
 
         batch_size = train_config.batch_size_per_gpu
+
         train_dataloader = DataLoader(
             train_dataset, 
             batch_size=batch_size,  
             shuffle=False,
             collate_fn=train_dataset.collate_fn,
+            pin_memory=pin_memory,
+            num_workers=num_workers,
         )
         valid_dataloader = DataLoader(
             valid_dataset, 
             batch_size=batch_size, 
             shuffle=False,
             collate_fn=valid_dataset.collate_fn,
+            pin_memory=pin_memory,
+            num_workers=num_workers,
         )
 
         log.info('train dataset size: {}, validation dataset size: {}.'\
                 .format(len(train_dataset), len(valid_dataset)), save_to_file=True)
+        
+        # 梯度累计的步数
+        accumulation_steps = train_config.gradient_accumulation_steps
 
         set_seed(train_config.seed)
-        accelerator = Accelerator(mixed_precision=train_config.mixed_precision)
+
+        accelerator = Accelerator(
+            mixed_precision=train_config.mixed_precision,       # 混合精度
+            gradient_accumulation_steps=accumulation_steps,     # 梯度累积
+        )
+
         device = accelerator.device
         log.info('using device: {} '.format(str(device)), save_to_file=True)
 
@@ -188,27 +209,12 @@ class ChatTrainer:
 
         # 保存模型配置，方便修改配置后恢复
         save_model_config(model.t5_config.to_diff_dict(), train_config.model_config_file)
-
-        optimizer = torch.optim.AdamW(params=model.parameters(), lr=train_config.learn_rate)
-        lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
-                optimizer=optimizer, 
-                max_lr=train_config.div_factor * train_config.learn_rate, 
-                epochs=train_config.epochs, 
-                steps_per_epoch=len(train_dataset),  # 获取train dataset的长度
-                div_factor=train_config.div_factor,
-            )
         
-        model, optimizer, lr_scheduler, train_dataloader, valid_dataloader = accelerator.prepare(
-                model, 
-                optimizer,
-                lr_scheduler, 
-                train_dataloader, 
-                valid_dataloader,
-            )
-        
-        self.model = model
-        self.accelerator = accelerator
+        # T5训练，论文推荐使用Adafactor
+        optimizer = Adafactor(params=model.parameters(), lr=train_config.learn_rate)
 
+
+        
         # 获取当前机器有多少个GPU，默认全部使用
         num_gpus_used = accelerator.state.num_processes
 
@@ -221,10 +227,30 @@ class ChatTrainer:
         steps_per_epoch = int(np.ceil(len(train_dataset) // total_batch_size))
         eval_steps = int(np.ceil(len(valid_dataset) // total_batch_size))
 
+        
+        lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+                optimizer=optimizer, 
+                max_lr=train_config.div_factor * train_config.learn_rate, 
+                epochs=train_config.epochs, 
+                steps_per_epoch=int(np.ceil( len(train_dataset) / (batch_size * accumulation_steps) )),  # 梯度累积相当于增大了batch_size
+                div_factor=train_config.div_factor,
+                cycle_momentum=False,
+            )
+        
+        model, optimizer, lr_scheduler, train_dataloader, valid_dataloader = accelerator.prepare(
+                model, 
+                optimizer,
+                lr_scheduler, 
+                train_dataloader, 
+                valid_dataloader,
+            )
+        
+        self.model = model
+        self.accelerator = accelerator
+        
         best_bleu4 = 0.0
         best_epoch = 0
         epoch_loss_list = []
-        step_loss_list = []
 
         log_loss_interval_n = 50 # 每间隔 n 步保存一次loss到文件
 
@@ -236,16 +262,20 @@ class ChatTrainer:
                 TimeRemainingColumn(),
                 TimeElapsedColumn(),
                 TextColumn("[bold blue]{task.fields[show_info]}"),
+                refresh_per_second=0.2,  # 每5秒钟更新一次，不要频繁更新
                 )
             
             epoch_progress = progress.add_task(description='epoch: ', show_info='', total=train_config.epochs)
-            steps_progress = progress.add_task(description='steps: ', show_info='', total=steps_per_epoch)
+            steps_progress = progress.add_task(description='steps: ', show_info='', \
+                                                total=np.ceil(steps_per_epoch / log_loss_interval_n))
             eval_progress = progress.add_task(description='evaluate: ', show_info='', total=eval_steps, visible=False)
 
             self.progress = progress
             self.eval_progress = eval_progress
 
             progress.start()
+
+        # end if
 
         for epoch in range(train_config.epochs):
             
@@ -262,47 +292,51 @@ class ChatTrainer:
             for step, batch_data in enumerate(train_dataloader):
 
                 input_ids, input_mask = batch_data['input_ids'], batch_data['input_mask']
-                # target_ids, target_mask = batch_data['target_ids'], batch_data['target_mask']
                 target_ids = batch_data['target_ids']
 
                 # for t5 model, all labels set to `-100` are ignored (masked)
                 target_ids[target_ids == decoder_start_token_id] = -100
 
-                # print("inputs:{}, mask:{}, target_ids:{}".format(input_ids.shape, input_mask.shape, target_ids.shape))
-                
                 outputs = model(
                     input_ids=input_ids,
                     input_mask=input_mask,
                     labels=target_ids
                 )
 
-                loss = outputs.loss.mean()
-                loss_cpu = loss.detach().cpu().numpy()
-                
-                step_loss_list.append(loss_cpu)
-                epoch_loss_list.append(loss_cpu)
+                loss = outputs.loss.mean() / accumulation_steps
 
                 # attention here! loss.backward()
                 accelerator.backward(loss) 
-                
-                optimizer.step()
-                lr_scheduler.step()
-                optimizer.zero_grad()
-                
-                # 更新进度条
-                if accelerator.is_main_process:
-                    step_show_txt = 'step: {}/{}, loss: {:.6f}'.format(step, steps_per_epoch, loss_cpu)
-                    progress.advance(steps_progress, advance=1)
-                    progress.update(steps_progress, show_info=step_show_txt)
 
-                # 保存 loss 到文件
-                if step % log_loss_interval_n == 0 or step == eval_steps - 1:
+                # 梯度累计
+                if step % accumulation_steps == 0:
+                    accelerator.clip_grad_norm_(model.parameters(), 1.0)
+                
+                    optimizer.step()
+                    lr_scheduler.step()
+                    optimizer.zero_grad()
+                
+                # ==================================以下记录loss到日志============================================
+
+                # 每n步更新一次，避免频繁的cpu-gpu数据复制
+                # 参考：https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html#avoid-unnecessary-cpu-gpu-synchronization
+                if step % log_loss_interval_n == 0 or step == steps_per_epoch:
+
+                    loss_cpu = outputs.loss.mean().detach().cpu().numpy()
+                    epoch_loss_list.append(loss_cpu)
                     
                     info_txt = 'training loss: epoch:{}, step:{}, loss:{}, device:{}'.\
-                        format(epoch, step, my_average(step_loss_list), str(accelerator.device))
+                        format(epoch, step, loss_cpu, str(accelerator.device))
                     
-                    log.info(info_txt, std_out=False, save_to_file=True)
-                    step_loss_list = []
+                    log.info(info_txt, std_out=False, save_to_file=True) # 保存 loss 到文件
+
+                    # 更新进度条
+                    if accelerator.is_main_process:
+                        step_show_txt = 'step: {}/{}, loss: {:.6f}'.format(step, steps_per_epoch, loss_cpu)
+                        progress.advance(steps_progress, advance=1)
+                        progress.update(steps_progress, show_info=step_show_txt)
+
+                # ==================================以上记录loss到日志============================================
                 
                 # if step >= 20:break
             
@@ -310,6 +344,7 @@ class ChatTrainer:
             
             if accelerator.is_main_process: 
                 progress.advance(epoch_progress, advance=1)
+                self.save_model(epoch)
 
             model.eval()
             
@@ -324,8 +359,8 @@ class ChatTrainer:
             # save model
             if cur_bleu4_score >= best_bleu4:
                 best_bleu4 = cur_bleu4_score
-                best_epoch = epoch
-
+                best_epoch = epoch            
+            
                 accelerator.wait_for_everyone()
                 
                 if accelerator.is_main_process: 
@@ -411,6 +446,10 @@ class ChatTrainer:
         model_config = self.model_config
         log = self.logger
 
+        # args for dataloader
+        pin_memory = False if self.is_win_platform else True
+        num_workers = 0 if self.is_win_platform else 1
+
         test_dataset = MyDataset(
             parquet_file=train_config.train_file,
             tokenizer_file=train_config.tokenizer_file,
@@ -422,7 +461,9 @@ class ChatTrainer:
             test_dataset, 
             batch_size=train_config.batch_size_per_gpu,
             shuffle=False,
-            collate_fn=test_dataset.collate_fn
+            collate_fn=test_dataset.collate_fn,
+            pin_memory=pin_memory,
+            num_workers=num_workers,
         )
 
         log.info('test dataset size: {}.'.format(len(test_dataset)), save_to_file=True)
@@ -469,6 +510,7 @@ class ChatTrainer:
                 TimeRemainingColumn(),
                 TimeElapsedColumn(),
                 TextColumn("[bold blue]{task.fields[show_info]}"),
+                refresh_per_second=1.0,
                 )
                 
             steps_progress = progress.add_task(description='steps: ', show_info='', total=steps)

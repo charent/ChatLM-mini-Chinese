@@ -15,5 +15,6 @@ rich==13.6.0
 sentencepiece==0.1.99
 tokenizers==0.14.1
 torch==2.1.0
+torch_optimizer==0.3.0
 transformers==4.34.0
 ujson==5.8.0
