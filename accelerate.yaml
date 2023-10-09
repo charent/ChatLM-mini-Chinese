@@ -1,11 +1,12 @@
 compute_environment: LOCAL_MACHINE
 debug: false
 deepspeed_config:
-  gradient_accumulation_steps: 1
+  gradient_accumulation_steps: 16
   gradient_clipping: 1.0
   offload_optimizer_device: cpu
   offload_param_device: cpu
   zero3_init_flag: false
+  zero3_save_16bit_model: false
   zero_stage: 3
 distributed_type: DEEPSPEED
 downcast_bf16: 'no'

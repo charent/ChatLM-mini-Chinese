@@ -8,10 +8,15 @@ class TrainConfig:
     epochs: int = 8
     batch_size_per_gpu: int = 24
     
-    learn_rate: float = 0.0001    # 最大 div_factor * learn_rate
+    learn_rate: float = 0.0001                      # 最大 div_factor * learn_rate
     div_factor: int = 50
 
-    mixed_precision: str = "bf16" #混合精度 ''no','fp16','bf16' or 'fp8'
+    mixed_precision: str = "bf16"                   # 混合精度 ''no','fp16','bf16' or 'fp8'
+
+    # 注意：计算梯度时相当于batch_size * gradient_accumulation_steps，说人话就是梯度累积步数>1时，等于增大n倍的batch_size
+    gradient_accumulation_steps: int = 16           # 累积梯度更新步数
+
+    warmup_steps: int = 1024                        # 模型参数预热步数，预热样本数=warmup_steps * batch_size * gradient_accumulation_steps
 
     tokenizer_file: str = PROJECT_ROOT + '/model_save/my_merged_tokenizer.json'
     model_file: str= PROJECT_ROOT + '/model_save/chat_small_t5.{}.pth'

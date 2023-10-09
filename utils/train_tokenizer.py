@@ -43,7 +43,7 @@ def train_my_huggingface_tokenizer() -> None:
     def get_training_corpus():
         for pf_chunk in pf:
             for rows in pf_chunk.iter_row_groups():
-                yield rows['prompt'] + '[SEP]' + rows['reponse'] + '[SEP]'
+                yield rows['prompt'] + '[SEP]' + rows['response'] + '[SEP]'
 
     model = BPE(unk_token="[UNK]")
     tokenizer = Tokenizer(model)
@@ -142,11 +142,11 @@ def get_corpus_dict() -> None:
 
     for pf_chunk in progress.track(source_pf):
         for rows in pf_chunk.iter_row_groups():
-            for prompt, reponse in zip(rows['prompt'], rows['reponse']):
-                prompt, reponse = lcut(prompt), lcut(reponse)
+            for prompt, response in zip(rows['prompt'], rows['response']):
+                prompt, response = lcut(prompt), lcut(response)
 
                 add_sentence_to_dict(prompt)
-                add_sentence_to_dict(reponse)
+                add_sentence_to_dict(response)
 
     
     with open(save_file, 'w', encoding='utf-8') as f:
@@ -160,20 +160,20 @@ def df_process_function(rows: pd.DataFrame, word_freq_dict: dict, single_word_di
     for row in rows.iterrows():
         # s = time.time()
         prompt = row[1]['prompt']
-        reponse = row[1]['reponse']
-        prompt_cut, reponse_cut = lcut(prompt), lcut(reponse)
-        # print('pid {}, q len{}, a len {}, cut use {}s'.format(os.getpid(), len(prompt), len(reponse), time.time() - s))
+        response = row[1]['response']
+        prompt_cut, response_cut = lcut(prompt), lcut(response)
+        # print('pid {}, q len{}, a len {}, cut use {}s'.format(os.getpid(), len(prompt), len(response), time.time() - s))
 
         # s = time.time()
         # add_sentence_to_dict(prompt, word_freq_dict, single_word_dict, word_freq_dict_lock, single_word_dict_lock)
-        # add_sentence_to_dict(reponse, word_freq_dict, single_word_dict, word_freq_dict_lock, single_word_dict_lock)
+        # add_sentence_to_dict(response, word_freq_dict, single_word_dict, word_freq_dict_lock, single_word_dict_lock)
 
         # with word_freq_dict_lock:
         word_freq_dict_lock.acquire()
 
         for word in prompt_cut:
             word_freq_dict[word] += 1
-        for word in reponse_cut:
+        for word in response_cut:
             word_freq_dict[word] += 1
 
         word_freq_dict_lock.release()
@@ -185,7 +185,7 @@ def df_process_function(rows: pd.DataFrame, word_freq_dict: dict, single_word_di
 
         for ch in prompt:
             single_word_dict[ch] += 1
-        for ch in reponse:
+        for ch in response:
             single_word_dict[ch] += 1
 
         single_word_dict_lock.release()
