@@ -5,7 +5,7 @@ import time
 from typing import Union
 import platform 
 
-from psutil import virtual_memory
+from psutil import virtual_memory, cpu_count
 import numpy as np
 from torch.utils.data import DataLoader
 import torch 
@@ -150,7 +150,13 @@ class ChatTrainer:
 
         # args for dataloader
         pin_memory = False if self.is_win_platform else True
-        num_workers = 0 if self.is_win_platform else 1
+        num_workers = 0
+        if not self.is_win_platform:
+            cpu_cnt = cpu_count(logical=False)
+            if cpu_cnt >= 16:
+                num_workers = 8
+            else:
+                num_workers = int(cpu_cnt // 2)
 
         train_dataset = MyDataset(
             parquet_file=train_config.train_file,
@@ -184,8 +190,8 @@ class ChatTrainer:
             num_workers=num_workers,
         )
 
-        log.info('train dataset size: {}, validation dataset size: {}.'\
-                .format(len(train_dataset), len(valid_dataset)), save_to_file=True)
+        log.info('train dataset size: {}, validation dataset size: {}, pin_memory: {},  num_workers: {}.'\
+                .format(len(train_dataset), len(valid_dataset), pin_memory, num_workers), save_to_file=True)
         
         # 梯度累计的步数
         accumulation_steps = train_config.gradient_accumulation_steps
