@@ -17,8 +17,8 @@ import pyarrow.parquet as pq
 from opencc import OpenCC
 from tokenizers import Tokenizer
 
-# import sys
-# sys.path.extend(['.','..'])
+import sys
+sys.path.extend(['.','..'])
 
 from logger import Logger
 from config import PROJECT_ROOT
@@ -111,8 +111,8 @@ def read_and_write_template(read_file: str, write_to_file: str, call_back: objec
     ...    do something for inputs
     ...
     >>>     my_dict = {
-    >>>             'question': inputs['q'],
-    >>>             'answer': inputs['a1'] + inputs['a2'],
+    >>>             'prompt': inputs['p'],
+    >>>             'response': inputs['a1'] + inputs['a2'],
     >>>             ...
     >>>         }
     >>>     return my_dict
@@ -168,11 +168,11 @@ def read_and_write_template(read_file: str, write_to_file: str, call_back: objec
 
 #=====================================数据集处理=================================
 
-def process_web_text(keep_start: int=5, answer_less_word: int=10) -> None:
+def process_web_text(keep_start: int=5, response_less_word: int=10) -> None:
     '''
     处理425万社区问答webtext2019zh知识类数据集
     keep_start: 只保留点赞数大于keep_start的问答
-    answer_less_word: 答案至少要有answer_less_word个字
+    response_less_word: 答案至少要有response_less_word个字
     '''
     file_names = [
         '/data/raw_data/web_text_zh_test.json',
@@ -189,16 +189,16 @@ def process_web_text(keep_start: int=5, answer_less_word: int=10) -> None:
     def process_function(line: str) -> dict:
         item = ujson.loads(line)
 
-        if item['star'] < keep_start or len(item['content']) < answer_less_word: 
+        if item['star'] < keep_start or len(item['content']) < response_less_word: 
             return None
 
         # 数据清洗
         # 去除重复的标点符号
-        question = remove_duplicate_punctuation(item['title'])
-        answer = remove_duplicate_punctuation(item['content'])
+        prompt = remove_duplicate_punctuation(item['title'])
+        response = remove_duplicate_punctuation(item['content'])
         write_dict = {
-            "question": question,
-            "answer": answer,
+            "prompt": prompt,
+            "response": response,
         }
         return write_dict
 
@@ -208,7 +208,7 @@ def process_web_text(keep_start: int=5, answer_less_word: int=10) -> None:
         read_and_write_template(read_file, save_file_name, process_function)
 
 
-def process_bake_qa(answer_less_word: int=15) -> None:
+def process_bake_qa(response_less_word: int=15) -> None:
     '''
     处理147万百度知道知识类数据集
 
@@ -226,35 +226,35 @@ def process_bake_qa(answer_less_word: int=15) -> None:
     def process_function(line: str) -> dict:
         item = ujson.loads(line)
 
-        if len(item['answer']) < answer_less_word: 
+        if len(item['answer']) < response_less_word: 
             return None
 
         # 数据清洗
-        question = ''
+        prompt = ''
         if get_sentences_dice_similarity(item['title'], item['desc']) >= 0.90:
             # title 和desc 相似度过高，只用title作为问题
-            question = item['title']
+            prompt = item['title']
         else:
             # title 和desc拼接形成问题
-            question = "{}{}".format(item['title'], item['desc'])
+            prompt = "{}{}".format(item['title'], item['desc'])
 
         # 删除\r
-        question = question.replace('\r','') 
+        prompt = prompt.replace('\r','') 
 
         # 删除重复的标点符号
-        question = remove_duplicate_punctuation(question)
+        prompt = remove_duplicate_punctuation(prompt)
 
         # 去除重复的标点符号
-        answer = item['answer'].replace('\r','')
-        answer = remove_duplicate_punctuation(answer)
+        response = item['answer'].replace('\r','')
+        response = remove_duplicate_punctuation(response)
 
         # 剔除问题和答案过短的数据
-        if len(question) < 3 or len(answer) < answer_less_word:
+        if len(prompt) < 3 or len(response) < response_less_word:
             return None
         
         write_dict = {
-                "question": question,
-                "answer": answer,
+                "prompt": prompt,
+                "response": response,
             }
 
         return write_dict
@@ -284,7 +284,7 @@ def repair_line_error_csv_file(raw_csv_file: str, save_suffix: str, read_encodin
             writer = csv.writer(f)
             writer.writerows(new_lines)
 
-def process_chinese_medical_datasets(answer_less_word: int=15) -> None:
+def process_chinese_medical_datasets(response_less_word: int=15) -> None:
     '''
     处理中国医药领域问答数据集
     '''
@@ -324,35 +324,35 @@ def process_chinese_medical_datasets(answer_less_word: int=15) -> None:
             print(item)
             return None
 
-        if len(item[3]) < answer_less_word: 
+        if len(item[3]) < response_less_word: 
             return None
 
         # 数据清洗
-        question = ''
+        prompt = ''
         if get_sentences_dice_similarity(item[1], item[2]) >= 0.90:
             # title 和ask 相似度过高，只用ask作为问题
-            question = item[2]
+            prompt = item[2]
         else:
             # title 和 ask 拼接形成问题
-            question = "{}{}".format(item[1], item[2])
+            prompt = "{}{}".format(item[1], item[2])
 
         # 删除\r
-        question = question.replace('\r','') 
+        prompt = prompt.replace('\r','') 
 
         # 删除重复的标点符号
-        question = remove_duplicate_punctuation(question)
+        prompt = remove_duplicate_punctuation(prompt)
 
         # 去除重复的标点符号
-        answer = ''.join(item[3: ]).replace('\r','')
-        answer = remove_duplicate_punctuation(answer)
+        response = ''.join(item[3: ]).replace('\r','')
+        response = remove_duplicate_punctuation(response)
 
         # 剔除问题和答案过短的数据
-        if len(question) < 3 or len(answer) < answer_less_word:
+        if len(prompt) < 3 or len(response) < response_less_word:
             return None
         
         write_dict = {
-                "question": question,
-                "answer": answer,
+                "prompt": prompt,
+                "response": response,
             }
 
         return write_dict
@@ -363,7 +363,7 @@ def process_chinese_medical_datasets(answer_less_word: int=15) -> None:
         read_and_write_template(read_file, save_file, process_function)
 
 
-def process_finace_dataset(question_less_word: int=10, answer_less_word: int=15) -> None:
+def process_finace_dataset(prompt_less_word: int=10, response_less_word: int=15) -> None:
     '''
     处理金融问答数据集
     '''
@@ -375,41 +375,41 @@ def process_finace_dataset(question_less_word: int=10, answer_less_word: int=15)
 
     
     def process_function(line: str) -> dict:
-        # title,question,reply,is_best
+        # title,prompt,reply,is_best
         item = line.split(',') # csv文件逗号分割
         if len(item) < 4:
             print(item)
             return None
 
-        if len(item[0]) + len(item[1]) < question_less_word or len(item[2]) < answer_less_word: 
+        if len(item[0]) + len(item[1]) < prompt_less_word or len(item[2]) < response_less_word: 
             return None
 
         # 数据清洗
-        question = ''
+        prompt = ''
         if get_sentences_dice_similarity(item[0], item[1]) >= 0.90:
-            # title 和question 相似度过高，只用最长的作为问题
-            question = item[0] if len(item[0]) > len(item[0]) else item[1]
+            # title 和prompt 相似度过高，只用最长的作为问题
+            prompt = item[0] if len(item[0]) > len(item[0]) else item[1]
         else:
             # title 和 ask 拼接形成问题
-            question = "{}{}".format(item[0], item[1])
+            prompt = "{}{}".format(item[0], item[1])
 
         # 删除\r
-        question = question.replace('\r','') 
+        prompt = prompt.replace('\r','') 
 
         # 删除重复的标点符号
-        question = remove_duplicate_punctuation(question)
+        prompt = remove_duplicate_punctuation(prompt)
 
         # 去除重复的标点符号
-        answer = ''.join(item[2]).replace('\r','')
-        answer = remove_duplicate_punctuation(answer)
+        response = ''.join(item[2]).replace('\r','')
+        response = remove_duplicate_punctuation(response)
 
         # 剔除问题和答案过短的数据
-        if len(question) < question_less_word or len(answer) < answer_less_word:
+        if len(prompt) < prompt_less_word or len(response) < response_less_word:
             return None
         
         write_obj = {
-                "question": question,
-                "answer": answer,
+                "prompt": prompt,
+                "response": response,
             }
 
         return write_obj
@@ -425,7 +425,7 @@ def process_finace_dataset(question_less_word: int=10, answer_less_word: int=15)
     read_and_write_template(read_file, write_file, process_function)
 
 
-def process_zhihu_kol_dataset(question_less_word: int=4, answer_less_word: int=10, group_cnt: int=10000) -> None:
+def process_zhihu_kol_dataset(prompt_less_word: int=4, response_less_word: int=10, group_cnt: int=10000) -> None:
     '''
     处理知乎数据集
     
@@ -462,43 +462,42 @@ def process_zhihu_kol_dataset(question_less_word: int=4, answer_less_word: int=1
     cur_rows = []
     append = cur_rows.append
     for file in file_names:
-        pf = ParquetFile(file)
+        pf = pq.read_table(file)
         log.info('process file: {}'.format(file), save_to_file=True)
 
-        for pf_chunk in progress.track(pf): # pf分块
-            for rows in pf_chunk.iter_row_groups():
-                for question, answer in zip(rows['INSTRUCTION'], rows['RESPONSE']):
-                    all_cnt += 1
-                    
-                    question = process_function(question)
-                    answer = process_function(answer)
+        for prompt, response in progress.track(zip(pf['INSTRUCTION'], pf['RESPONSE']), total=pf.num_rows):
+            all_cnt += 1
+            prompt, response = prompt.as_py(), response.as_py()
+            
+            prompt = process_function(prompt)
+            response = process_function(response)
 
-                    if len(question) < question_less_word or len(answer) < answer_less_word:
-                        continue
-                    
-                    keep_cnt += 1
-                    write_dict = {
-                        'question': question,
-                        'answer': answer,
-                    }
-                    append(write_dict)
+            if len(prompt) < prompt_less_word or len(response) < response_less_word:
+                continue
+            
+            keep_cnt += 1
+            write_dict = {
+                'prompt': prompt,
+                'response': response,
+            }
+            append(write_dict)
 
-                    if len(cur_rows) >= group_cnt:
-                        df = pd.DataFrame(cur_rows)
-                        write_single_parquet_file(save_file, df)
-                        cur_rows = []
-                        append = cur_rows.append
-                    
-        # end for 
-        if len(cur_rows) > 0:
-            df = pd.DataFrame(cur_rows)
-            write_single_parquet_file(save_file, df)
-            cur_rows = []
+            if len(cur_rows) >= group_cnt:
+                df = pd.DataFrame(cur_rows)
+                write_single_parquet_file(save_file, df)
+                cur_rows = []
+                append = cur_rows.append
+            
+    # end for 
+    if len(cur_rows) > 0:
+        df = pd.DataFrame(cur_rows)
+        write_single_parquet_file(save_file, df)
+        cur_rows = []
 
     log.info('save file to: {}, 全部数据共{}行，清洗后剩余{}行'.format(save_file, all_cnt, keep_cnt), save_to_file=True)
 
 
-def process_belle_knowledge_enhanced_dataset(answer_less_words: int=15, group_cnt: int=10000) -> None:
+def process_belle_knowledge_enhanced_dataset(response_less_words: int=15, group_cnt: int=10000) -> None:
     '''
     处理belle开源的知识增强数据集
     '''
@@ -519,21 +518,29 @@ def process_belle_knowledge_enhanced_dataset(answer_less_words: int=15, group_cn
         每行的处理函数
         '''
         item = ujson.loads(line)
-        question = item['instruction']
-        answer = item['output']
+        prompt = item['instruction']
+        response = item['output']
 
-        if len(answer) < answer_less_words:
+        # 剔除翻译任务
+        if '翻译' in prompt or 'translate' in prompt.lower():
             return None
         
-        question = remove_duplicate_punctuation(question)
-        answer = remove_duplicate_punctuation(answer)
+        # 删除表格类任务
+        if '表格' in prompt or '-----' in prompt or '-----' in response:
+            return None
 
-        if len(answer) < answer_less_words:
+        if len(response) < response_less_words:
+            return None
+        
+        prompt = remove_duplicate_punctuation(prompt)
+        response = remove_duplicate_punctuation(response)
+
+        if len(response) < response_less_words:
             return None
 
         write_dict = {
-            'question': question,
-            'answer': answer
+            'prompt': prompt,
+            'response': response
         }
 
         return write_dict
@@ -608,7 +615,7 @@ def process_zh_wiki_data_to_datset(groups_cnt: int=10000, max_len: int=512, seed
     all_cnt, keep_cnt = 0, 0
     
     # 构造问题的前缀
-    question_prefix = [
+    prompt_prefix = [
         '什么是{}？',
         '介绍一下{}',
         '介绍一下什么是{}',
@@ -651,16 +658,16 @@ def process_zh_wiki_data_to_datset(groups_cnt: int=10000, max_len: int=512, seed
     choice = np.random.choice
 
     with progress.open(raw_zh_wiki_file, 'r', encoding='utf-8') as read_file:
-        question = '' 
-        answer = '' 
+        prompt = '' 
+        response = '' 
         pre_line_len = 0
         cur_rows = []
         append = cur_rows.append
         for line in read_file:
             all_cnt += 1
 
-            # question已经保存，但是仍有多余的行，这些行使得answer的长度＞max_len，故跳过，不处理
-            if len(question) == 0 and pre_line_len > 0:
+            # prompt已经保存，但是仍有多余的行，这些行使得response的长度＞max_len，故跳过，不处理
+            if len(prompt) == 0 and pre_line_len > 0:
                 pre_line_len = len(line.strip())
                 continue
             
@@ -668,25 +675,25 @@ def process_zh_wiki_data_to_datset(groups_cnt: int=10000, max_len: int=512, seed
             line = procees_line(line)
             
 
-            # 确定问题，pre_line_len是0，既是上一行是空行，则当前行是新的百科词条，设置为question
-            if question == '' and line.endswith('：') and pre_line_len == 0:
-                question = choice(question_prefix).format(line[0: -1])
+            # 确定问题，pre_line_len是0，既是上一行是空行，则当前行是新的百科词条，设置为prompt
+            if prompt == '' and line.endswith('：') and pre_line_len == 0:
+                prompt = choice(prompt_prefix).format(line[0: -1])
                 continue
 
             pre_line_len = len(line.strip())
 
             # 问题下来若干行为答案
-            if question != '' and not line.endswith('：'):
+            if prompt != '' and not line.endswith('：'):
                 # 其实，pre_line_len已经是len(line.strip())了，如果len(line.strip())=0，既是当前行是0，则不管答案长度够不够，都需要保存了
-                if len(answer) + len(line) <= max_len and pre_line_len != 0: 
-                    answer = '{}{}'.format(answer, line)
-                elif len(answer) + len(line) > max_len or pre_line_len == 0:
+                if len(response) + len(line) <= max_len and pre_line_len != 0: 
+                    response = '{}{}'.format(response, line)
+                elif len(response) + len(line) > max_len or pre_line_len == 0:
                     # 长度超了或者当前的百科已经结束，保存一条样例
                     keep_cnt += 1
-                    answer = '{}{}'.format(answer, line)
-                    append({'question': question, 'answer': ''.join(answer[0: max_len])})
-                    question = ''
-                    answer = ''
+                    response = '{}{}'.format(response, line)
+                    append({'prompt': prompt, 'response': ''.join(response[0: max_len])})
+                    prompt = ''
+                    response = ''
 
             # =groups_cnt保存到文件
             if len(cur_rows) >= groups_cnt:
@@ -696,9 +703,9 @@ def process_zh_wiki_data_to_datset(groups_cnt: int=10000, max_len: int=512, seed
                 append = cur_rows.append
 
         # end for
-        if len(question) > 0 and len(answer) > 0:
+        if len(prompt) > 0 and len(response) > 0:
             keep_cnt += 1
-            append({'question': question, 'answer': answer})
+            append({'prompt': prompt, 'response': response})
 
         if len(cur_rows) > 0:
             df = pd.DataFrame(cur_rows)
@@ -730,20 +737,20 @@ def merge_dataset_as_single_file(groups_cnt: int=50000, max_len: int=512, min_le
 
         parquet_table = pq.read_table(file)
      
-        for question, answer in progress.track(zip(parquet_table['question'], parquet_table['answer']), total=parquet_table.num_rows):
+        for prompt, response in progress.track(zip(parquet_table['prompt'], parquet_table['response']), total=parquet_table.num_rows):
 
-            question, answer = question.as_py(), answer.as_py()
+            prompt, response = prompt.as_py(), response.as_py()
             all_cnt += 1
 
-            if len(question) < min_len or len(answer) < min_len:
+            if len(prompt) < min_len or len(response) < min_len:
                 continue
 
-            if cut_max_len and (len(question) > max_len or len(answer) > max_len):
-                question = question[0: max_len]
-                answer = answer[0: max_len]
+            if cut_max_len and (len(prompt) > max_len or len(response) > max_len):
+                prompt = prompt[0: max_len]
+                response = response[0: max_len]
 
             keep_cnt += 1
-            append({'question': question , 'answer': answer})
+            append({'prompt': prompt , 'response': response})
 
             if len(cur_rows) >= groups_cnt:
                 df = pd.DataFrame(cur_rows)
@@ -870,11 +877,11 @@ def split_train_valid_test_datasets(source_parquet_file: str, max_len: int=320, 
 
     parquet_table =  pq.read_table(source_parquet_file)
 
-    for question, answer in progress.track(zip(parquet_table['question'], parquet_table['answer']), total=parquet_table.num_rows):
+    for prompt, response in progress.track(zip(parquet_table['prompt'], parquet_table['response']), total=parquet_table.num_rows):
         
-        question, answer = question.as_py(), answer.as_py()
+        prompt, response = prompt.as_py(), response.as_py()
         rand = np.random.random()
-        cur_data = {'question': ''.join(question[0: max_len]) , 'answer': ''.join(answer[0: max_len])}
+        cur_data = {'prompt': ''.join(prompt[0: max_len]) , 'response': ''.join(response[0: max_len])}
 
         if 0 <= rand < train_ratio:
             train.append(cur_data)
@@ -925,8 +932,8 @@ def parquet_to_text(sep='[SEP]', buffer_size: int=50000) -> None:
     with open(txt_file, 'a', encoding='utf-8') as f_write:
         for pf_chunk in progress.track(source_pf):
             for rows in pf_chunk.iter_row_groups():
-                for question, answer in zip(rows['question'], rows['answer']):
-                    append(question + sep + answer + sep + '\n')
+                for prompt, response in zip(rows['prompt'], rows['response']):
+                    append(prompt + sep + response + sep + '\n')
 
                     if len(cur_rows) >= buffer_size:
                         f_write.writelines(cur_rows)
@@ -974,11 +981,11 @@ def text_dataset_to_ids_dataset(tokenizer_file: str, max_len: int=320, pad_token
                 for rows in pf_chunk.iter_row_groups(): #一个pf_chunk大概1万-5万条数据，视写入parquet时的配置定
 
                     # text to ids
-                    question = encode_batch(rows['question'])
-                    answer = encode_batch(rows['answer'])
+                    prompt = encode_batch(rows['prompt'])
+                    response = encode_batch(rows['response'])
                     
-                    input_ids = [q.ids for q in question]
-                    target_ids = [a.ids for a in answer]
+                    input_ids = [p.ids for p in prompt]
+                    target_ids = [r.ids for r in response]
 
                     df = pd.DataFrame({'input_ids': input_ids, 'target_ids': target_ids})
                     write_single_parquet_file(save_ids_files[i], df)
@@ -991,37 +998,67 @@ def dataset_length_cnt() -> None:
 
     que_len_dict, ans_len_dict = defaultdict(int), defaultdict(int)
     
-    for question, answer in progress.track(zip(parquet_table['question'], parquet_table['answer']), total=parquet_table.num_rows):
+    for prompt, response in progress.track(zip(parquet_table['prompt'], parquet_table['response']), total=parquet_table.num_rows):
 
-        question, answer = question.as_py(), answer.as_py()
+        prompt, response = prompt.as_py(), response.as_py()
 
-        que_len_dict[len(question)] += 1
-        ans_len_dict[len(answer)] += 1
+        que_len_dict[len(prompt)] += 1
+        ans_len_dict[len(response)] += 1
 
     que_len, ans_len = [], []
     for k, v in que_len_dict.items():
         que_len.append([k, v])
     for k, v in ans_len_dict.items():
         ans_len.append([k, v])
-    
-    que_len.sort(key=lambda x: x[0])
-    ans_len.sort(key=lambda x: x[0])
-    
-    que_df = pd.DataFrame(que_len, columns=['length', 'count'])
-    ans_df = pd.DataFrame(ans_len, columns=['length', 'count'])
 
-    plt.figure()                 
-    plt.plot(que_df['count'],'b',label = 'count')
-    plt.ylabel('length')
-    plt.xlabel('count')
-    plt.legend()        #个性化图例（颜色、形状等）
-    plt.show()
+    def gather_gt_x(array: list[tuple], x: int=512) -> list:
+        '''
+        长度大于x的合并在一起
+        '''
+        new_array = []
+        gt_x_cnt = 0
+        for item in array:
+            if item[0] < x:
+                new_array.append([item[0], item[1]])
+            else:
+                gt_x_cnt += item[1]
+        new_array.append([x, gt_x_cnt])
 
-    plt.figure()                 
-    plt.plot(ans_df['count'],'b',label = 'count')
-    plt.ylabel('length')
-    plt.xlabel('count')
-    plt.legend()        #个性化图例（颜色、形状等）
+        return new_array
+    
+    max_len = 512
+    ans_list = gather_gt_x(ans_len, max_len)
+    ans_list.sort(key=lambda x: x[0])
+    que_list = gather_gt_x(que_len, max_len)
+    que_list.sort(key=lambda x: x[0])
+    
+    ans_pd = pd.DataFrame(ans_list, columns=['length', 'count'])
+    que_pd = pd.DataFrame(que_list, columns=['length', 'count'])
+
+    def plot_sub_bar(plt, x, y, title: str, color: str='g') ->None:
+        plt.bar(x, y, color=color, label='sample count')
+        plt.ticklabel_format(style='sci',scilimits=(0,0), axis='y')
+        plt.legend()
+        plt.xlabel('length')
+        plt.ylabel('count')
+        plt.title(title)
+
+    plt.figure(figsize=(10, 10),dpi=200)
+    plt.subplot(2, 2, 1)
+    plot_sub_bar(plt, que_pd['length'], que_pd['count'], title='prompt length', color='c')
+
+    plt.subplot(2, 2, 2)
+    plot_sub_bar(plt, ans_pd['length'], ans_pd['count'], title='response length', color='g')
+
+    le512_pd = ans_pd[ans_pd['length'] < 512]
+    plt.subplot(2, 2, 3)
+    plot_sub_bar(plt, le512_pd['length'], le512_pd['count'], title='response length < 512', color='limegreen')
+
+    le320_pd = ans_pd[ans_pd['length'] < 320]
+    plt.subplot(2, 2, 4)
+    plot_sub_bar(plt, le320_pd['length'], le320_pd['count'], title='response length < 320', color='limegreen')
+
+    plt.savefig(PROJECT_ROOT +  '/img/sentance_length.png')
     plt.show()
 
 
@@ -1034,22 +1071,22 @@ if __name__ == '__main__':
     
     # 注释了，不重复处理
     # 1.
-    # process_web_text(keep_start=5, answer_less_word=15)
+    # process_web_text(keep_start=5, response_less_word=15)
 
     # 2.
-    # process_bake_qa(answer_less_word=15)
+    # process_bake_qa(response_less_word=15)
 
     # 3.
-    # process_chinese_medical_datasets(answer_less_word=15)
+    # process_chinese_medical_datasets(response_less_word=15)
 
-    # 4. 
-    # process_finace_dataset(question_less_word=10, answer_less_word=15)
+    # 4. 金融问答数据集质量太差了
+    # process_finace_dataset(prompt_less_word=10, response_less_word=15)
 
     # 5.
-    # process_zhihu_kol_dataset(question_less_word=4, answer_less_word=10)
+    # process_zhihu_kol_dataset(prompt_less_word=4, response_less_word=10)
 
     # 6.
-    # process_belle_knowledge_enhanced_dataset(answer_less_words=15)
+    # process_belle_knowledge_enhanced_dataset(response_less_words=5)
 
     # convert_wiki_to_simple_zh()
 
@@ -1059,7 +1096,7 @@ if __name__ == '__main__':
     #=================================================================
 
     # merge
-    # merge_dataset_as_single_file(groups_cnt=50000, min_len=3, cut_max_len=False)
+    # merge_dataset_as_single_file(groups_cnt=50000, min_len=3, max_len=512, cut_max_len=True)
 
     # # shuffle
     # shuffle_parquet_dataset(
@@ -1082,7 +1119,7 @@ if __name__ == '__main__':
 
     # count_my_parquet_data(PROJECT_ROOT + '/data/my_dataset.parquet')
 
-    dataset_length_cnt()
+    # dataset_length_cnt()
 
     count_my_parquet_data(PROJECT_ROOT + '/data/')
 
