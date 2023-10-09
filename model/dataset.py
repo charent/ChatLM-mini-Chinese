@@ -65,9 +65,9 @@ class MyDataset(Dataset):
         # 生成器是死循环，不用退出，训练结束（epoch结束）会停止调用next()
         while True:
 
-            for question, answer in zip(parquet_table['question'], parquet_table['answer']):
+            for prompt, reponse in zip(parquet_table['prompt'], parquet_table['reponse']):
 
-                yield question.as_py(), answer.as_py()
+                yield prompt.as_py(), reponse.as_py()
     
     def __getitem__(self, index):
         '''
@@ -75,14 +75,14 @@ class MyDataset(Dataset):
         '''
         if self.keep_in_memory:
             data = self.data
-            question, answer = data.iloc[index].question, data.iloc[index].answer
+            prompt, reponse = data.iloc[index].prompt, data.iloc[index].reponse
         else:
-            question, answer = next(self.sample_generator)
+            prompt, reponse = next(self.sample_generator)
 
         encode = self.encode
-        question_encoded, answer_encoded = encode(question), encode(answer)
+        prompt_encoded, reponse_encoded = encode(prompt), encode(reponse)
        
-        return question_encoded.ids, question_encoded.attention_mask, answer_encoded.ids
+        return prompt_encoded.ids, prompt_encoded.attention_mask, reponse_encoded.ids
 
     @staticmethod
     def collate_fn(data: list[list]) -> dict:
@@ -141,7 +141,7 @@ class ParquetDataset:
 
         # 这里的batch_size不是训练的batch_size，是传递给precess_batch_func的batch_size
         dataset = dataset.map(self.precess_batch_func, batched=True, batch_size=buffer_size, \
-                            remove_columns=['question', 'answer'],  fn_kwargs={'encode_batch': self.encode_batch})
+                            remove_columns=['prompt', 'reponse'],  fn_kwargs={'encode_batch': self.encode_batch})
         
         dataset = dataset.with_format(type="torch")
 
@@ -158,12 +158,12 @@ class ParquetDataset:
         '''
         处理一个批次的文本，转换为id，并返回mask
         '''
-        question = encode_batch(item['question'])
-        answer = encode_batch(item['answer'])
+        prompt = encode_batch(item['prompt'])
+        reponse = encode_batch(item['reponse'])
 
-        input_ids, input_mask = [q.ids for q in question], [q.attention_mask for q in question]
-        target_ids = [a.ids for a in answer]
-        # target_mask = [a.attention_mask for a in answer]
+        input_ids, input_mask = [p.ids for p in prompt], [p.attention_mask for p in prompt]
+        target_ids = [r.ids for r in reponse]
+        # target_mask = [r.attention_mask for r in reponse]
 
         return {'input_ids': input_ids, 'input_mask': input_mask, 'target_ids': target_ids}
     

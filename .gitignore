@@ -9,10 +9,16 @@
 .history/
 .idea/
 
+# python cache
 *.pyc
 
 logs/*
+
 data/*
+!/data/my_train_dataset_3k.parquet
+!/data/my_test_dataset_2k.parquet
+!/data/my_valid_dataset_1k.parquet
+
 model_save/*
 !model_save/my_merged_tokenizer.json
 
