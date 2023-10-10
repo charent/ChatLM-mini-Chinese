@@ -153,14 +153,14 @@ class ChatTrainer:
 
         # args for dataloader
         num_workers = 0
-        if not self.is_win_platform:
-            cpu_cnt = cpu_count(logical=False)
-            gpu_cnt = torch.cuda.device_count()
-            if cpu_cnt >= 8 * gpu_cnt:
-                # num_workers = 4 x number of available GPUs
-                num_workers = int(4 * gpu_cnt)
-            else:
-                num_workers = int(cpu_cnt // 2)
+        # if not self.is_win_platform:
+        #     cpu_cnt = cpu_count(logical=False)
+        #     gpu_cnt = torch.cuda.device_count()
+        #     if cpu_cnt >= 8 * gpu_cnt:
+        #         # num_workers = 4 x number of available GPUs
+        #         num_workers = int(4 * gpu_cnt)
+        #     else:
+        #         num_workers = int(cpu_cnt // 2)
 
         train_dataset = MyDataset(
             parquet_file=train_config.train_file,
@@ -182,15 +182,15 @@ class ChatTrainer:
             batch_size=batch_size,  
             shuffle=True,
             collate_fn=train_dataset.collate_fn,
-            pin_memory=False,           # 大数据集不要锁内存，否则OOM
-            num_workers=num_workers,
+            pin_memory=False,
+            num_workers=num_workers,    #设置>1会导致cpu内存缓慢增涨，最后OOM，后面再研究为什么，num_workers=4，一个epoch只减少30分钟
         )
         valid_dataloader = DataLoader(
             valid_dataset, 
             batch_size=batch_size, 
             shuffle=False,
             collate_fn=valid_dataset.collate_fn,
-            pin_memory=False,            # 大数据集不要锁内存，否则OOM
+            pin_memory=False,
             num_workers=num_workers,
         )
 
@@ -319,7 +319,7 @@ class ChatTrainer:
                 accelerator.backward(loss) 
 
                 # 梯度累计
-                if step % accumulation_steps == 0:
+                if (step + 1) % accumulation_steps == 0:
                     accelerator.clip_grad_norm_(model.parameters(), 1.0)
                 
                     optimizer.step()
@@ -331,8 +331,8 @@ class ChatTrainer:
                 # 每n步更新一次，避免频繁的cpu-gpu数据复制
                 # 参考：https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html#avoid-unnecessary-cpu-gpu-synchronization
                 if step % log_loss_interval_n == 0 or step == steps_per_epoch:
-
-                    loss_cpu = outputs.loss.mean().detach().cpu().numpy()
+                    
+                    loss_cpu = loss.detach().item() * accumulation_steps
                     epoch_loss_list.append(loss_cpu)
                     
                     info_txt = 'training loss: epoch:{}, step:{}, loss:{}, device:{}'.\
