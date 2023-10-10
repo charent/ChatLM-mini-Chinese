@@ -1,7 +1,7 @@
 compute_environment: LOCAL_MACHINE
 debug: false
 deepspeed_config:
-  gradient_accumulation_steps: 16
+  gradient_accumulation_steps: 8
   gradient_clipping: 1.0
   offload_optimizer_device: cpu
   offload_param_device: cpu

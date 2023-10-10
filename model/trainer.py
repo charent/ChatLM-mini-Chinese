@@ -152,12 +152,13 @@ class ChatTrainer:
         log.info('loading datasets ...')
 
         # args for dataloader
-        pin_memory = False if self.is_win_platform else True
         num_workers = 0
         if not self.is_win_platform:
             cpu_cnt = cpu_count(logical=False)
-            if cpu_cnt >= 16:
-                num_workers = 8
+            gpu_cnt = torch.cuda.device_count()
+            if cpu_cnt >= 8 * gpu_cnt:
+                # num_workers = 4 x number of available GPUs
+                num_workers = int(4 * gpu_cnt)
             else:
                 num_workers = int(cpu_cnt // 2)
 
@@ -181,7 +182,7 @@ class ChatTrainer:
             batch_size=batch_size,  
             shuffle=True,
             collate_fn=train_dataset.collate_fn,
-            pin_memory=pin_memory,
+            pin_memory=False,           # 大数据集不要锁内存，否则OOM
             num_workers=num_workers,
         )
         valid_dataloader = DataLoader(
@@ -189,12 +190,12 @@ class ChatTrainer:
             batch_size=batch_size, 
             shuffle=False,
             collate_fn=valid_dataset.collate_fn,
-            pin_memory=pin_memory,
+            pin_memory=False,            # 大数据集不要锁内存，否则OOM
             num_workers=num_workers,
         )
 
-        log.info('train dataset size: {}, validation dataset size: {}, pin_memory: {},  num_workers: {}.'\
-                .format(len(train_dataset), len(valid_dataset), pin_memory, num_workers), save_to_file=True)
+        log.info('train dataset size: {}, validation dataset size: {}, datalodater num_workers: {}.'\
+                .format(len(train_dataset), len(valid_dataset), num_workers), save_to_file=True)
         
         # 梯度累计的步数
         accumulation_steps = train_config.gradient_accumulation_steps
@@ -456,8 +457,7 @@ class ChatTrainer:
         log = self.logger
 
         # args for dataloader
-        pin_memory = False if self.is_win_platform else True
-        num_workers = 0 if self.is_win_platform else 1
+        num_workers = 0 if self.is_win_platform else 4
 
         test_dataset = MyDataset(
             parquet_file=train_config.train_file,
@@ -471,7 +471,7 @@ class ChatTrainer:
             batch_size=train_config.batch_size_per_gpu,
             shuffle=False,
             collate_fn=test_dataset.collate_fn,
-            pin_memory=pin_memory,
+            pin_memory=False,
             num_workers=num_workers,
         )
 
