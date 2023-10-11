@@ -74,7 +74,7 @@ class ChatTrainer:
         '''
         进程退出时的操作，保存模型
         '''
-        if self.accelerator and self.accelerator.is_main_process:
+        if self.accelerator and self.model:
             ask = "are you sure to exit this process?  Yes (y) or No (n)"
             self.accelerator.print(ask)
             ins = input()
@@ -82,6 +82,8 @@ class ChatTrainer:
             if ins.lower() in ('yes', 'y'):
 
                 suffix =  'exit_save_{}'.format(str(time.strftime('%Y%m%d%H%M%S', time.localtime())))
+
+                self.accelerator.wait_for_everyone()
                 self.save_model(suffix)
 
                 self.accelerator.print('model ckeck point has been saved!')
@@ -94,12 +96,21 @@ class ChatTrainer:
 
     def save_model(self, suffix: Union[str, int]) -> None:
         '''保存模型到文件
+        注意：save_model不能放到is_main_process里面
+        e.g:
+        >>> self.save_model(epoch) # 在这里使用
+        >>> if accelerator.is_main_process:
+        >>>     do_somthing()
         '''
         if self.model and self.accelerator:
+
+            # 先wait_for_everyone，再保存
             self.accelerator.wait_for_everyone()
-            unwrap_model = self.accelerator.unwrap_model(self.model)
-            model_dict =  self.accelerator.get_state_dict(unwrap_model)
-            torch.save(model_dict, self.train_config.model_file.format(suffix))
+
+            if self.accelerator.is_main_process:
+                unwrap_model = self.accelerator.unwrap_model(self.model)
+                model_dict =  self.accelerator.get_state_dict(unwrap_model)
+                torch.save(model_dict, self.train_config.model_file.format(suffix))
 
     
     def delete_early_checkpoint(self, epoch: int, keep_latest_n: int=3,) -> None:
@@ -144,8 +155,9 @@ class ChatTrainer:
         unuse_mem = virtual_memory().available / (1024 ** 3)  # 单位：GB
         unuse_disk = get_free_space_of_disk('./')
 
-        # 剩余内存≥32GB将把数据集留在内存中
-        keep_in_memory = True if unuse_mem >= 32.0 else False
+        # 剩余内存≥48GB将把数据集留在内存中,因为2个显卡+全全部装载900多万的训练数据到内存需要大概43GB的CPU内存
+        # 如果不放在内存中，将会使用迭代器生成数据，CPU 内存小于16GB也可以运行，但是不支持顺序打乱。
+        keep_in_memory = True if unuse_mem >= 48.0 else False
 
         log.info('cpu memory available: {:.2f} GB, disk space available: {:.2f} GB, keep dataset in memory: {}.'\
                  .format(unuse_mem, unuse_disk, keep_in_memory), save_to_file=True)
@@ -327,9 +339,9 @@ class ChatTrainer:
                     optimizer.zero_grad()
                 
                 # ==================================以下记录loss到日志============================================
-
                 # 每n步更新一次，避免频繁的cpu-gpu数据复制
                 # 参考：https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html#avoid-unnecessary-cpu-gpu-synchronization
+                
                 if step % log_loss_interval_n == 0 or step == steps_per_epoch:
                     
                     loss_cpu = loss.detach().item() * accumulation_steps
@@ -351,12 +363,10 @@ class ChatTrainer:
                 # if step >= 20:break
             
             #  end for batch setps
-            
-            if accelerator.is_main_process: 
-                progress.advance(epoch_progress, advance=1)
-                self.save_model(epoch)
 
             model.eval()
+            
+            self.save_model(epoch)                
             
             cur_bleu4_score = self.evaluate(
                 model=model,
@@ -368,19 +378,18 @@ class ChatTrainer:
 
             # save model
             if cur_bleu4_score >= best_bleu4:
+
                 best_bleu4 = cur_bleu4_score
-                best_epoch = epoch            
-            
-                accelerator.wait_for_everyone()
-                
-                if accelerator.is_main_process: 
-                    # 最多保存最近keep_latest_n_ckp个模型文件
-                    # self.delete_early_checkpoint(epoch=epoch, keep_latest_n=train_config.keep_latest_n_ckp)
-                    self.save_model(epoch)
-                    
+                best_epoch = epoch
+                # 最多保存最近keep_latest_n_ckp个模型文件
+                # self.delete_early_checkpoint(epoch=epoch, keep_latest_n=train_config.keep_latest_n_ckp)
+                self.save_model(epoch)
+
 
             # 每个epoch打印一下日志
             if accelerator.is_main_process:
+
+                progress.advance(epoch_progress, advance=1)
                 info_txt = 'epoch log: epoch:{}, avg_loss:{}, cur_bleu4:{}, best_bleu4:{}, best_epoch:{}'.\
                             format(epoch, my_average(epoch_loss_list), cur_bleu4_score, best_bleu4, best_epoch)
                 # log.info(info_txt, std_out=True, save_to_file=True)

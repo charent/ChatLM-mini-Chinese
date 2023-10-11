@@ -59,6 +59,7 @@ class MyDataset(Dataset):
         '''
         一条数据的生成器，防止大数据集OOM
         '''
+        # TO DO: 使用buffer_size，一次加载n条数据，打乱后再返回
         
         parquet_table = self.data
 
