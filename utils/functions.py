@@ -1,5 +1,6 @@
 from collections import Counter
 from typing import Union
+from dataclasses import make_dataclass, field
 
 import ctypes
 import os
@@ -32,6 +33,29 @@ def my_average(arry_list: list[float]) -> float:
     if len(arry_list) == 0: return 0.0 
     
     return np.average(arry_list)
+
+def json_to_dataclass(json_file: str, class_name: str='Config') -> type:
+    '''
+    将json配置文件转换为dataclass
+    >>> example:
+    >>> data_class = json_to_dataclass('my_config.json', 'Config')
+    >>> my_config = data_class()
+    >>> assert my_config.name == 'Alice'
+    >>> my_config.name = 'Bob' 
+    '''
+    json_dict = {}
+    with open(json_file, 'r', encoding='utf-8') as f:
+        json_dict = ujson.load(f)
+
+    # 将dict转换为可迭代的属性名称、属性类型，默认值
+    fields_list = []
+    for k, v in json_dict.items():
+        fields_list.append( (k, type(v), field(default=v)) )
+    
+    data_class = make_dataclass(cls_name=class_name, fields=fields_list)
+
+    return data_class
+
 
 def get_path_of_suffix_files(root: str, suffix: str, with_create_time: bool=False) -> list:
     '''

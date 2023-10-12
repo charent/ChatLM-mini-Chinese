@@ -144,12 +144,22 @@ class ChatTrainer:
             os.remove(item[0])
 
     
-    def train(self, ) -> None:
+    def train(self, is_finetune: bool=False) -> None:
         '''
         '''
         log = self.logger
         train_config = self.train_config
         model_config = self.model_config
+
+        # 梯度累计的步数
+        accumulation_steps = train_config.gradient_accumulation_steps
+
+        set_seed(train_config.seed)
+
+        accelerator = Accelerator(
+            mixed_precision=train_config.mixed_precision,       # 混合精度
+            gradient_accumulation_steps=accumulation_steps,     # 梯度累积
+        )
 
         # 根据剩余内存大小决定是否完全加载数据集到内存中
         unuse_mem = virtual_memory().available / (1024 ** 3)  # 单位：GB
@@ -159,9 +169,10 @@ class ChatTrainer:
         # 如果不放在内存中，将会使用迭代器生成数据，CPU 内存小于16GB也可以运行，但是不支持顺序打乱。
         keep_in_memory = True if unuse_mem >= 48.0 else False
 
-        log.info('cpu memory available: {:.2f} GB, disk space available: {:.2f} GB, keep dataset in memory: {}.'\
-                 .format(unuse_mem, unuse_disk, keep_in_memory), save_to_file=True)
-        log.info('loading datasets ...')
+        if accelerator.is_main_process:
+            log.info('cpu memory available: {:.2f} GB, disk space available: {:.2f} GB, keep dataset in memory: {}.'\
+                    .format(unuse_mem, unuse_disk, keep_in_memory), save_to_file=True)
+            log.info('operation: {}, loading datasets ...'.format('finetune' if is_finetune else 'train'))
 
         # args for dataloader
         num_workers = 0
@@ -206,21 +217,9 @@ class ChatTrainer:
             num_workers=num_workers,
         )
 
-        log.info('train dataset size: {}, validation dataset size: {}, datalodater num_workers: {}.'\
-                .format(len(train_dataset), len(valid_dataset), num_workers), save_to_file=True)
-        
-        # 梯度累计的步数
-        accumulation_steps = train_config.gradient_accumulation_steps
-
-        set_seed(train_config.seed)
-
-        accelerator = Accelerator(
-            mixed_precision=train_config.mixed_precision,       # 混合精度
-            gradient_accumulation_steps=accumulation_steps,     # 梯度累积
-        )
-
         device = accelerator.device
         log.info('using device: {} '.format(str(device)), save_to_file=True)
+        
 
         # T5: All labels set to `-100` are ignored (masked), the loss is only computed for labels in `[0, ..., config.vocab_size]`
         tokenizer = train_dataset.tokenizer
@@ -235,7 +234,6 @@ class ChatTrainer:
         # T5训练，论文推荐使用Adafactor
         optimizer = Adafactor(params=model.parameters(), lr=train_config.learn_rate)
 
-
         
         # 获取当前机器有多少个GPU，默认全部使用
         num_gpus_used = accelerator.state.num_processes
@@ -248,6 +246,11 @@ class ChatTrainer:
 
         steps_per_epoch = int(np.ceil(len(train_dataset) // total_batch_size))
         eval_steps = int(np.ceil(len(valid_dataset) // total_batch_size))
+
+        if accelerator.is_main_process:
+            log.info('train dataset size: {}, steps per epoch:{}; \
+                    validation dataset size: {},  steps per validation: {}; datalodater num_workers: {}.'\
+                    .format(len(train_dataset), steps_per_epoch, len(valid_dataset), eval_steps, num_workers), save_to_file=True)
 
         
         lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
@@ -338,6 +341,10 @@ class ChatTrainer:
                     lr_scheduler.step()
                     optimizer.zero_grad()
                 
+                # 每隔1万步保存一次模型
+                if (step + 1) % 10000 == 0 or step == steps_per_epoch :
+                    self.save_model('epoch_{}_latest'.format(epoch))
+                
                 # ==================================以下记录loss到日志============================================
                 # 每n步更新一次，避免频繁的cpu-gpu数据复制
                 # 参考：https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html#avoid-unnecessary-cpu-gpu-synchronization
@@ -364,9 +371,7 @@ class ChatTrainer:
             
             #  end for batch setps
 
-            model.eval()
-            
-            self.save_model(epoch)                
+            model.eval()         
             
             cur_bleu4_score = self.evaluate(
                 model=model,
@@ -471,7 +476,7 @@ class ChatTrainer:
         test_dataset = MyDataset(
             parquet_file=train_config.train_file,
             tokenizer_file=train_config.tokenizer_file,
-            keep_in_memory=True,
+            keep_in_memory=False if self.is_win_platform else True,
             max_seq_len=train_config.max_seq_len,
         )
         
