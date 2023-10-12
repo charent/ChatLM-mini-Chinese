@@ -1,8 +1,10 @@
-from os.path import dirname, abspath
+from typing import Union
+
 import torch
 from torch.nn import Module
 from torch import Tensor, LongTensor
 from transformers import T5ForConditionalGeneration, T5Config
+from transformers import TextIteratorStreamer
 
 from config import T5ModelConfig
 from config import PROJECT_ROOT
@@ -73,21 +75,54 @@ class TextToTextModel(Module):
             **args
             )
 
-    def generate(self, input_ids: LongTensor, attention_mask: LongTensor, max_seq_len: int=256) -> Tensor:
+    @torch.no_grad()
+    def generate(self, 
+                input_ids: LongTensor, 
+                attention_mask: LongTensor, 
+                max_seq_len: int=256,
+            ) -> Tensor:
+        
         result = self.model.generate(
             inputs=input_ids,
             attention_mask=attention_mask,
+            no_repeat_ngram_size=2,
+            
+            # top_k args:
             max_length=max_seq_len, 
             do_sample=True, 
-            # top_p=0.6,
             top_k=50,
             early_stopping=True,
-            num_beams=2,
+            num_beams=5,
+
+            # top_p args:
+            # top_p=0.6,
+            # max_new_tokens=max_seq_len,
             # repetition_penalty=2.5,
             # length_penalty=1.0,
             )
 
         return result
+    
+    @torch.no_grad()
+    def steam_generate(self,
+                    input_ids: LongTensor, 
+                    attention_mask: LongTensor, 
+                    max_seq_len: int=256,
+                    streamer: TextIteratorStreamer=None,
+                ) -> None:
+        
+        self.model.generate(
+            inputs=input_ids,
+            attention_mask=attention_mask,
+            no_repeat_ngram_size=2,
+            streamer=streamer,
+
+            # top_k args:
+            max_length=max_seq_len, 
+            do_sample=True, 
+            
+        )
+    
 
 if __name__ == '__main__':
     model_dir = PROJECT_ROOT + '/model_save/t2t/'

@@ -26,16 +26,13 @@
 #### 2.4 效果展示
 
 
-### 三、使用
+### 三、使用说明
+
 1. 安装依赖 
     pip安装：
     ```bash
     pip install -r ./requirements.txt
     ``` 
-    或者使用国内源:
-    ```bash
-    pip install -r ./requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
-    ```
     conda安装：
     ```bash
     conda install --yes --file ./requirements.txt
@@ -44,7 +41,7 @@
 2. 训练
    
     2.1 jupyter-lab 或者 jupyter notebook: 
-    见文件`main.ipynb`，推荐使用jupyter-lab，避免考虑与服务器断开后终端进程被杀的情况。 
+    见文件`train.ipynb`，推荐使用jupyter-lab，避免考虑与服务器断开后终端进程被杀的情况。 
 
     2.2 终端：
     终端训练需要考虑连接断开后进程被杀的，推荐使用进程守护工具`Supervisor`或者`screen`建立连接会话。
@@ -56,24 +53,23 @@
     开始训练，如果要使用工程提供的配置请在下面的命令`accelerate launch`后加上参数`--config_file ./accelerate.yaml`，*该配置按照单机2xGPU配置*
     单机单卡：
     ``` bash
-    accelerate launch ./main.py train
+    accelerate launch ./train.py train
     ```
     单机多卡：
     ``` bash
-    accelerate launch --multi_gpu --num_processes 2 ./main.py train
+    accelerate launch --multi_gpu --num_processes 2 ./train.py train
     ```
 
 3.  微调
-    
+   见`model/trainer.py`下的`finetrun`方法
+    ``` bash
+    accelerate launch --multi_gpu --num_processes 2 ./train.py finetrune=True
+    ```
 4.  推理
-
-#### 使用说明
-
-1.  运行
-
-   
-2.  xxxx
-3.  xxxx
+    控制台运行：
+    ```bash
+    python cli_demo.py
+    ```
 
 
 #### 提示
