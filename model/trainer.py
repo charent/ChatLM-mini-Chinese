@@ -144,8 +144,10 @@ class ChatTrainer:
             os.remove(item[0])
 
     
-    def train(self, is_finetune: bool=False) -> None:
+    def train(self, is_keep_training: bool=False, is_finetune: bool=False) -> None:
         '''
+        is_keep_training: 是否从断点处加载状态继续训练
+        is_finetune: 是否微调，微调的话可能需要冻结部分参数
         '''
         log = self.logger
         train_config = self.train_config
@@ -159,6 +161,7 @@ class ChatTrainer:
         accelerator = Accelerator(
             mixed_precision=train_config.mixed_precision,       # 混合精度
             gradient_accumulation_steps=accumulation_steps,     # 梯度累积
+            project_dir=train_config.train_state_dir,
         )
 
         # 根据剩余内存大小决定是否完全加载数据集到内存中
@@ -172,7 +175,7 @@ class ChatTrainer:
         if accelerator.is_main_process:
             log.info('cpu memory available: {:.2f} GB, disk space available: {:.2f} GB, keep dataset in memory: {}.'\
                     .format(unuse_mem, unuse_disk, keep_in_memory), save_to_file=True)
-            log.info('operation: {}, loading datasets ...'.format('finetune' if is_finetune else 'train'))
+            log.info('operation: {}, keep training: {}, loading datasets ...'.format('finetune' if is_finetune else 'train', is_keep_training))
 
         # args for dataloader
         num_workers = 0
@@ -270,6 +273,10 @@ class ChatTrainer:
                 valid_dataloader,
             )
         
+        if is_keep_training:
+            accelerator.load_state(input_dir=train_config.train_state_dir)
+            accelerator.register_for_checkpointing(lr_scheduler)
+        
         self.model = model
         self.accelerator = accelerator
         
@@ -313,7 +320,9 @@ class ChatTrainer:
 
             epoch_loss_list = []
             model.train()
-            
+
+            torch.cuda.empty_cache()
+
             for step, batch_data in enumerate(train_dataloader):
 
                 input_ids, input_mask = batch_data['input_ids'], batch_data['input_mask']
@@ -344,6 +353,7 @@ class ChatTrainer:
                 # 每隔1万步保存一次模型
                 if (step + 1) % 10000 == 0 or step == steps_per_epoch :
                     self.save_model('epoch_{}_latest'.format(epoch))
+                    accelerator.save_state(output_dir=train_config.train_state_dir)
                 
                 # ==================================以下记录loss到日志============================================
                 # 每n步更新一次，避免频繁的cpu-gpu数据复制
@@ -389,6 +399,7 @@ class ChatTrainer:
                 # 最多保存最近keep_latest_n_ckp个模型文件
                 # self.delete_early_checkpoint(epoch=epoch, keep_latest_n=train_config.keep_latest_n_ckp)
                 self.save_model(epoch)
+                accelerator.save_state(output_dir=train_config.train_state_dir)
 
 
             # 每个epoch打印一下日志
@@ -399,7 +410,6 @@ class ChatTrainer:
                             format(epoch, my_average(epoch_loss_list), cur_bleu4_score, best_bleu4, best_epoch)
                 # log.info(info_txt, std_out=True, save_to_file=True)
                 self.print_and_log(info_txt, accelerator)
-                epoch_loss_list = []
 
 
     def evaluate(self, 
@@ -438,8 +448,8 @@ class ChatTrainer:
                 )
 
                 # gather data from multi-gpus (used when in ddp mode)
-                outputs = accelerator.gather_for_metrics(outputs).cpu().numpy()
-                target_ids = accelerator.gather_for_metrics(target_ids).cpu().numpy()
+                outputs = accelerator.gather_for_metrics(outputs).detach().cpu().numpy()
+                target_ids = accelerator.gather_for_metrics(target_ids).detach().cpu().numpy()
         
                 outputs = decode_batch(outputs,  skip_special_tokens=True)
                 target_ids = decode_batch(target_ids, skip_special_tokens=True )

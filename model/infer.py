@@ -72,7 +72,7 @@ class ChatBot:
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-        self.steamer = TextIteratorStreamer(tokenizer=tokenizer)
+        self.streamer = TextIteratorStreamer(tokenizer=tokenizer)
 
     def stream_chat(self, input_txt: str) -> TextIteratorStreamer:
         encoded = self.encode(input_txt)
@@ -84,13 +84,13 @@ class ChatBot:
             'input_ids': input_ids,
             'attention_mask': attention_mask,
             'max_seq_len': self.infer_config.max_seq_len,
-            'streamer': self.steamer,
+            'streamer': self.streamer,
         }
 
-        thread = Thread(target=self.model.steam_generate, kwargs=generation_kwargs)
+        thread = Thread(target=self.model.stream_generate, kwargs=generation_kwargs)
         thread.start()
         
-        return self.steamer
+        return self.streamer
 
     
     def chat(self, input_txt: str, ) -> str:
