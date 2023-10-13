@@ -3,7 +3,7 @@
 ### 一、介绍
 *Read this in [English](README.en.md).*
 
-### 二、模型
+### 二、Chat-LM-small模型训练过程
 ##### 2.1 数据集
 所有数据集均来自互联网公开的**单轮对话**数据集，经过数据清洗、格式化后保存为parquet文件。数据处理过程见`utils/raw_data_process.py`。主要数据集包括： 
 
@@ -59,11 +59,16 @@
     ``` bash
     accelerate launch --multi_gpu --num_processes 2 ./train.py train
     ```
+    从断点处继续训练：
+    ```
+    accelerate launch --multi_gpu --num_processes 2 ./train.py train --is_keep_training=True
+    ```
 
 3.  微调
-   见`model/trainer.py`下的`finetrun`方法
+    参考`data`目录下的示例`parquet`文件制作自己的数据集，数据集格式：`parquet`文件分两列，一列`prompt`文本表示提示语，一列`response`文本表示期待的模型输出。
+    微调细节见`model/trainer.py`下的`train`方法, `is_finetune`设置为`True`时，将进行微调，微调默认会冻结embedding层和encoder层，只训练decoder层。如需要冻结其他参数，请自行调整代码。
     ``` bash
-    accelerate launch --multi_gpu --num_processes 2 ./train.py finetune=True
+    accelerate launch --multi_gpu --num_processes 2 ./train.py --is_finetune=True
     ```
 4.  推理
     控制台运行：
