@@ -39,6 +39,10 @@ class TrainConfig:
     validation_file: str = PROJECT_ROOT + '/data/my_valid_dataset.parquet'
     test_file: str = PROJECT_ROOT + '/data/my_test_dataset.parquet'
 
+    # 从哪个模型开始微调，仅当traing 函数 is_finetune = True时生效
+    # 微调记得冻结某些层或者调低学习率
+    finetune_from_ckp_file = PROJECT_ROOT + '/model_save/chat_small_t5.best.pth'
+
     # 训练状态保存，中断后可以从此处继续训练
     train_state_dir: str = PROJECT_ROOT + '/model_save/train_latest_state'
 

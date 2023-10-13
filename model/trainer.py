@@ -231,6 +231,17 @@ class ChatTrainer:
 
         model = TextToTextModel(config=model_config, decoder_start_token_id=decoder_start_token_id)
 
+        # 微调加载的模型并冻结embedding和encoder
+        if is_finetune:
+            model.load_state_dict(torch.load(train_config.finetune_from_ckp_file))
+            # print(model)
+            
+            layers_to_freeze = [model.model.shared, model.model.encoder]
+
+            for layer in layers_to_freeze:
+                 for param in layer.parameters():
+                    param.requires_grad = False
+
         # 保存模型配置，方便修改配置后恢复
         save_model_config(model.t5_config.to_diff_dict(), train_config.model_config_file)
         
@@ -398,7 +409,7 @@ class ChatTrainer:
                 best_epoch = epoch
                 # 最多保存最近keep_latest_n_ckp个模型文件
                 # self.delete_early_checkpoint(epoch=epoch, keep_latest_n=train_config.keep_latest_n_ckp)
-                self.save_model(epoch)
+                self.save_model('best')
                 accelerator.save_state(output_dir=train_config.train_state_dir)
 
 
