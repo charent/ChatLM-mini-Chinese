@@ -1061,6 +1061,54 @@ def dataset_length_cnt() -> None:
     plt.savefig(PROJECT_ROOT +  '/img/sentance_length.png')
     plt.show()
 
+def process_belle_knowledge_enhanced_dataset_for_finetune(max_len: int=320, group_cnt: int=50000) -> None:
+    '''
+    处理belle开源的知识增强数据集
+    '''
+    file_names = [
+        '/data/raw_data/bell_open_source/Belle_open_source_0.5M.json',
+        '/data/raw_data/bell_open_source/train_conv_2.json',
+        '/data/raw_data/bell_open_source/generated_chat_0.4M.json',
+    ]
+
+    save_file = PROJECT_ROOT + '/data/my_finetune_data_zh.parquet'
+
+    # 后续append写入，存在文件先删除
+    if exists(save_file): 
+        assert delete_file(save_file)
+
+    def process_function(line: str) -> dict:
+        '''
+        每行的处理函数
+        '''
+        item = ujson.loads(line)
+        prompt = item['instruction']
+        response = item['output']
+
+        # 剔除翻译任务
+        if 'translate' in prompt.lower(): return None
+        for word in ('翻译', '英译', '译英', '中译',  '译中', '汉译', '译汉'):
+            if word in prompt:
+                return None
+        
+        # 删除表格类任务
+        if '表格' in prompt or '-----' in prompt or '-----' in response:
+            return None
+
+        if len(prompt) > max_len or len(response) > max_len:
+            return None
+
+        write_dict = {
+            'prompt': prompt,
+            'response': response
+        }
+
+        return write_dict
+
+    for file in file_names:
+        file = PROJECT_ROOT + file
+
+        read_and_write_template(file, save_file, process_function)
 
 
 if __name__ == '__main__':
@@ -1120,6 +1168,8 @@ if __name__ == '__main__':
     # count_my_parquet_data(PROJECT_ROOT + '/data/my_dataset.parquet')
 
     # dataset_length_cnt()
+
+    # process_belle_knowledge_enhanced_dataset_for_finetune(max_len=320, group_cnt=50000)
 
     count_my_parquet_data(PROJECT_ROOT + '/data/')
 
