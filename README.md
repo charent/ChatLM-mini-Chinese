@@ -63,7 +63,7 @@
 3.  微调
    见`model/trainer.py`下的`finetrun`方法
     ``` bash
-    accelerate launch --multi_gpu --num_processes 2 ./train.py finetrune=True
+    accelerate launch --multi_gpu --num_processes 2 ./train.py finetune=True
     ```
 4.  推理
     控制台运行：

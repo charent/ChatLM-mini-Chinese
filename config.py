@@ -39,6 +39,9 @@ class TrainConfig:
     validation_file: str = PROJECT_ROOT + '/data/my_valid_dataset.parquet'
     test_file: str = PROJECT_ROOT + '/data/my_test_dataset.parquet'
 
+    # 训练状态保存，中断后可以从此处继续训练
+    train_state_dir: str = PROJECT_ROOT + '/model_save/train_latest_state'
+
     # dataset_cache_dir: str = PROJECT_ROOT + '/data/.cache'
     # trainer_log_file: str = PROJECT_ROOT + '/logs/trainer.log'
 
