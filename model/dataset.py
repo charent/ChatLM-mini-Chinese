@@ -1,5 +1,4 @@
 from typing import Union
-import time
 
 from torch.utils.data import Dataset
 from torch import LongTensor
@@ -10,6 +9,7 @@ from datasets import load_dataset
 import datasets
 import pyarrow.parquet as pq
 from numpy import array, int64
+from numpy.random import shuffle
 
 # import sys 
 # sys.path.extend(['.', '..'])
@@ -23,6 +23,7 @@ class MyDataset(Dataset):
                 tokenizer_file: str,
                 keep_in_memory: bool=False,
                 max_seq_len: int=256,
+                buffer_size: int=40960,
             ) -> None:
         '''
         keep_in_memory: 是否将parquet文件转换为pandas.DataFrame格式存放到内存, 
@@ -38,6 +39,9 @@ class MyDataset(Dataset):
 
         # 获取数据集长度
         self.length = parquet_table.num_rows
+
+        # 缓冲区大小不能超过数据长度
+        self.buffer_size = self.length if buffer_size > self.length else buffer_size
 
         if keep_in_memory:
             # 转化为pandas放到内存中
@@ -59,16 +63,28 @@ class MyDataset(Dataset):
         '''
         一条数据的生成器，防止大数据集OOM
         '''
-        # TO DO: 使用buffer_size，一次加载n条数据，打乱后再返回
-        
+                
         parquet_table = self.data
 
         # 生成器是死循环，不用退出，训练结束（epoch结束）会停止调用next()
+        buffer_list = []
         while True:
 
             for prompt, response in zip(parquet_table['prompt'], parquet_table['response']):
+                
+                # 缓存数据不够，添加数据
+                if len(buffer_list) < self.buffer_size:
+                    buffer_list.append( (prompt.as_py(), response.as_py()) )
+                    continue
+                
+                # 执行到这里，缓存区够了，打乱数据
+                shuffle(buffer_list)
+                for p, r in buffer_list:
+                    # 在这里迭代
+                    yield  p, r
 
-                yield prompt.as_py(), response.as_py()
+                # 迭代完成，清空缓存区
+                buffer_list = []
     
     def __getitem__(self, index):
         '''
@@ -228,18 +244,19 @@ if __name__ == '__main__':
     tokenizer_file = PROJECT_ROOT + '/model_save/my_merged_tokenizer.json'
 
     # example 1：
-    dataset = MyDataset(parquet_file, tokenizer_file, keep_in_memory=False)
+    dataset = MyDataset(parquet_file, tokenizer_file, keep_in_memory=False, max_seq_len=128)
     print(len(dataset))
     dataloader = DataLoader(dataset, batch_size=32, collate_fn=dataset.collate_fn)
 
-    for epoch in range(3):
+    for epoch in range(10):
         print('epoch: {}'.format(epoch))
         for step, batch in enumerate(dataloader):
             x, x_mask, y = batch['input_ids'], batch['input_mask'], batch['target_ids']
-            # print('epoch: {}, step:{},'.format(epoch, step),x.shape, x_mask.shape, y.shape)
-            # print(step, x, y)
+            # print('epoch: {}, step:{},'.format(epoch, step),x[0][0:10])
+            if step % 500 == 0:
+                print(step, x.shape, y.shape)
             # print()
-            if step >= 5: break
+            # if step >= 5: break
     
     exit(0)
     # example 2:

@@ -104,7 +104,7 @@ class TextToTextModel(Module):
         return result
     
     @torch.no_grad()
-    def steam_generate(self,
+    def stream_generate(self,
                     input_ids: LongTensor, 
                     attention_mask: LongTensor, 
                     max_seq_len: int=256,
