@@ -3,20 +3,30 @@ from os.path import dirname, abspath
 
 PROJECT_ROOT: str = abspath(dirname(__file__))
 
-# ==============================以下为推断的配置=====================================================
+# ===================================================================================
+# 以下为推断的配置
 @dataclass
 class InferConfig:
-    max_seq_len: int = 256                          # 回答的最大长度
-    mixed_precision: str = "bf16"                   # 混合精度 ''no','fp16','bf16' or 'fp8'
+    max_seq_len: int = 320                          # 回答的最大长度
+    mixed_precision: str = "fp8"                   # 混合精度 ''no','fp16','bf16' or 'fp8'
 
-    model_file: str = PROJECT_ROOT + '/model_save/chat_small_t5.0.pth'
+    model_file: str = PROJECT_ROOT + '/model_save/chat_small_t5.best.bin'
     model_config_file: str = PROJECT_ROOT + '/model_save/model_config.json'
     tokenizer_file: str = PROJECT_ROOT + '/model_save/my_merged_tokenizer.json'
+    
+    #======================================
+    # this confing for api demo:
+    api_key: str = ""
+    host: str = '127.0.0.1'
+    port: int = 8812
+    reload: bool = True
+    workers: int = 1
+    log_level: str = 'info'
+    #======================================
 
 
-
-# ==============================以下为训练的配置======================================
-
+# ===================================================================================
+# 以下为训练的配置
 @dataclass
 class TrainConfig:
     epochs: int = 8
@@ -33,7 +43,7 @@ class TrainConfig:
     warmup_steps: int = 1024                        # 模型参数预热步数，预热样本数=warmup_steps * batch_size * gradient_accumulation_steps
 
     tokenizer_file: str = PROJECT_ROOT + '/model_save/my_merged_tokenizer.json'
-    model_file: str = PROJECT_ROOT + '/model_save/chat_small_t5.{}.pth'
+    model_file: str = PROJECT_ROOT + '/model_save/chat_small_t5.{}.bin'
     model_config_file: str = PROJECT_ROOT + '/model_save/model_config.json'
     train_file: str = PROJECT_ROOT + '/data/my_train_dataset.parquet'
     validation_file: str = PROJECT_ROOT + '/data/my_valid_dataset.parquet'
@@ -41,7 +51,7 @@ class TrainConfig:
 
     # 从哪个模型开始微调，仅当traing 函数 is_finetune = True时生效
     # 微调记得冻结某些层或者调低学习率
-    finetune_from_ckp_file = PROJECT_ROOT + '/model_save/chat_small_t5.best.pth'
+    finetune_from_ckp_file = PROJECT_ROOT + '/model_save/chat_small_t5.best.bin'
 
     # 训练状态保存，中断后可以从此处继续训练
     train_state_dir: str = PROJECT_ROOT + '/model_save/train_latest_state'
@@ -56,8 +66,8 @@ class TrainConfig:
     max_seq_len: int = 256                      # 最大句子长度，默认：256
 
 
-#============================以下为模型的配置======================================
-
+#======================================================================================
+# 以下为模型的配置
 @dataclass
 class T5ModelConfig:
 

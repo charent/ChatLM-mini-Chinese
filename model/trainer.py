@@ -121,7 +121,7 @@ class ChatTrainer:
         model_save_path = model_save_path.replace('\\', '/')    # 针对win的路径，将\替换为/
         model_save_path = '/'.join(model_save_path.split('/')[0: -1])   # 删除末尾文件名后缀
         
-        model_files = get_path_of_suffix_files(model_save_path, suffix='.pth', with_create_time=True)
+        model_files = get_path_of_suffix_files(model_save_path, suffix='.bin', with_create_time=True)
         
         # 进程异常退出保存模型文件不在删除范围
         train_save_model_fils = []
@@ -262,8 +262,7 @@ class ChatTrainer:
         eval_steps = int(np.ceil(len(valid_dataset) // total_batch_size))
 
         if accelerator.is_main_process:
-            log.info('train dataset size: {}, steps per epoch:{}; \
-                    validation dataset size: {},  steps per validation: {}; datalodater num_workers: {}.'\
+            log.info('train dataset size: {}, steps per epoch:{}; validation dataset size: {}, steps per validation: {}; datalodater num_workers: {}.'\
                     .format(len(train_dataset), steps_per_epoch, len(valid_dataset), eval_steps, num_workers), save_to_file=True)
 
         
@@ -332,7 +331,7 @@ class ChatTrainer:
             epoch_loss_list = []
             model.train()
 
-            torch.cuda.empty_cache()
+            # torch.cuda.empty_cache()
 
             for step, batch_data in enumerate(train_dataloader):
 
