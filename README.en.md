@@ -138,11 +138,20 @@ my_merged_tokenizer.json
 ```bash
 python cli_demo.py
 ```
+
 1. running with API
 ```
 python api_demo.py
 ```
 example of calling chat api：
+```bash
+curl --location '127.0.0.1:8812/api/chat' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer Bearer' \
+--data '{
+    "input_txt": "感冒了要怎么办？"
+}'
+```
 ![api demo](./img/api_example.png)
 
 

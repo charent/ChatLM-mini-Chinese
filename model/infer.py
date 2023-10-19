@@ -111,6 +111,6 @@ class ChatBot:
 
         # 删除decode出来字符间的空格
         outputs = [sentance.replace(' ', '') for sentance in outputs][0]
-        outputs = outputs[0: outputs.rfind('。') + 1]
+        # outputs = outputs[0: outputs.rfind('。') + 1]
 
         return outputs
