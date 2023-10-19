@@ -135,6 +135,14 @@ python cli_demo.py
 python api_demo.py
 ```
 API调用示例：
+```bash
+curl --location '127.0.0.1:8812/api/chat' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer Bearer' \
+--data '{
+    "input_txt": "感冒了要怎么办？"
+}'
+```
 ![api demo](./img/api_example.png)
 
 
