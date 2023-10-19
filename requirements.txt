@@ -1,16 +1,18 @@
 accelerate==0.23.0
 colorlog==6.7.0
 datasets==2.14.5
+fastapi==0.104.0
 fastparquet==2023.8.0
 fire==0.5.0
 jieba_fast==0.53
 matplotlib==3.8.0
 nltk==3.8.1
-numpy==1.26.0
+numpy==1.26.1
 opencc_python_reimplemented==0.1.7
 pandas==2.1.1
 psutil==5.9.5
 pyarrow==13.0.0
+pydantic==2.4.2
 rich==13.6.0
 sentencepiece==0.1.99
 tokenizers==0.14.1
@@ -18,3 +20,4 @@ torch==2.1.0
 torch_optimizer==0.3.0
 transformers==4.34.0
 ujson==5.8.0
+uvicorn==0.23.2

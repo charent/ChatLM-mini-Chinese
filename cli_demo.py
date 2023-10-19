@@ -12,7 +12,7 @@ chat_bot = ChatBot(infer_config=infer_config)
 
 clear_cmd = 'cls' if platform.system().lower() == 'windows' else 'clear'
 
-welcome_txt = '欢迎使用ChatBot，输入`exit`、`quite` 退出.'
+welcome_txt = '欢迎使用ChatBot，输入`exit`或者`quit` 退出，输入`cls`或者`clear`清屏。'
 print(welcome_txt)
 
 def build_prompt(history: list[list[str]]) -> str:
@@ -33,8 +33,17 @@ def chat(stream: bool=True) -> None:
         if len(input_txt) == 0:
             print('please input somthing')
         
+        # 退出
         if input_txt.lower() in ('exit', 'quite'):
             break
+        
+        # 清屏
+        if input_txt.lower() in ('cls', 'clear'):
+            history = []
+            turn_count = 0
+            os.system(clear_cmd)
+            print(welcome_txt)
+            continue
         
         if not stream:
             outs = chat_bot.chat(input_txt)
@@ -52,11 +61,12 @@ def chat(stream: bool=True) -> None:
                 stream_txt += word
                 rich_text.append(word)
 
-        history[turn_count][1] = stream_txt[0: stream_txt.rfind('。') + 1]
-
+        # history[turn_count][1] = stream_txt[0: stream_txt.rfind('。') + 1]
+        history[turn_count][1] = stream_txt
+        
         os.system(clear_cmd)
         print(build_prompt(history), flush=True)
         turn_count += 1
 
 if __name__ == '__main__':
-    chat(stream=False)
+    chat(stream=True)
