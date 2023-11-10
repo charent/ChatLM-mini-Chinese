@@ -11,7 +11,7 @@ numpy==1.26.1
 opencc_python_reimplemented==0.1.7
 pandas==2.1.1
 psutil==5.9.5
-pyarrow==13.0.0
+pyarrow==14.0.1
 pydantic==2.4.2
 rich==13.6.0
 sentencepiece==0.1.99
