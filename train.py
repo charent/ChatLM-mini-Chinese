@@ -11,5 +11,5 @@ if __name__ == '__main__':
     chat_trainer = ChatTrainer(train_config=train_config, model_config=model_config)
 
     # 解析命令行参数，执行指定函数
-    # e.g: python main.py train
+    # e.g: python train.py train
     fire.Fire(component=chat_trainer)
