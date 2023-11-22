@@ -46,6 +46,7 @@ GPU: RTX A5000 (24GB) * 2
 ![](./img/show2.png)
 ![](./img/show3.png)
 ![](./img/show4.png)
+![](./img/show5.png)
 
 There are problems: the pre-trained dataset is only more than 9 million, which cannot cover all aspects, and there will be cases of incorrect answers and nonsense generators.
 

@@ -88,15 +88,17 @@ class TextToTextModel(Module):
             no_repeat_ngram_size=2,
             
             # top_k args:
-            max_length=max_seq_len, 
+            # max_length=max_seq_len, 
             do_sample=True, 
             top_k=50,
             early_stopping=True,
             num_beams=5,
-
+            remove_invalid_values=True,
+            temperature=0.99,
             # top_p args:
             # top_p=0.6,
-            # max_new_tokens=max_seq_len,
+            max_new_tokens=max_seq_len,
+            decoder_start_token_id=self.t5_config.decoder_start_token_id,
             # repetition_penalty=2.5,
             # length_penalty=1.0,
             )
@@ -114,12 +116,8 @@ class TextToTextModel(Module):
         self.model.generate(
             inputs=input_ids,
             attention_mask=attention_mask,
-            no_repeat_ngram_size=2,
             streamer=streamer,
-
-            # top_k args:
             max_length=max_seq_len, 
-            do_sample=True, 
             
         )
     
