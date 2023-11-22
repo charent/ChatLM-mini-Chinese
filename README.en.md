@@ -118,6 +118,12 @@ You can also manually download it directly from the `Hugging Face Hub` repositor
     ```
 
 ## Fine-tuning
+
+#### TO DO
+> Use RLHF (reinforcement learning and human feedback method) for fine-tuning
+> Step 1: Use the fine-tuning dataset to do supervised fine-tuning (SFT, Supervised Finetuning).
+> Step 2: Use the preference dataset (a prompt contains at least 2 responses, one wanted response and one unwanted response. Multiple responses can be sorted by score, the most wanted one has the highest score) to train the reward model (RM, Reward Model).You can use the `peft` library to quickly build a Lora reward model.
+> Step 3: Use RM to perform supervised PPO training on the SFT model (DPO training can be used if there is insufficient GPU memory) to make the model meet preferences.
    
 Make your own dataset by referring to the sample `parquet` file in the `data` directory. The dataset format is: the `parquet` file is divided into two columns, one column of `prompt` text, representing the prompt, and another column of `response` text, representing the expected model. output.
 
