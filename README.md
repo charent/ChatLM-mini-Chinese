@@ -45,6 +45,7 @@ CPU: 28 vCPU Intel(R) Xeon(R) Gold 6330 CPU @ 2.00GHz
 ![](./img/show2.png)
 ![](./img/show3.png)
 ![](./img/show4.png)
+![](./img/show5.png)
 
 存在问题:，预训练数据集只有900多万，不能涵盖所有方面，会有答非所问、废话生成器的情况。
 
