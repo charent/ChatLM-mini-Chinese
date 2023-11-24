@@ -85,7 +85,7 @@ class TextToTextModel(Module):
         result = self.model.generate(
             inputs=input_ids,
             attention_mask=attention_mask,
-            no_repeat_ngram_size=2,
+            no_repeat_ngram_size=4,
             
             # top_k args:
             # max_length=max_seq_len, 
@@ -96,11 +96,11 @@ class TextToTextModel(Module):
             remove_invalid_values=True,
             temperature=0.99,
             # top_p args:
-            # top_p=0.6,
+            top_p=0.10,
             max_new_tokens=max_seq_len,
             decoder_start_token_id=self.t5_config.decoder_start_token_id,
-            # repetition_penalty=2.5,
-            # length_penalty=1.0,
+            repetition_penalty=1.5, # 重复词惩罚
+            # length_penalty=2.5,  # <0鼓励生成长句子
             )
 
         return result
