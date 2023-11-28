@@ -101,6 +101,8 @@ class TextToTextModel(Module):
             decoder_start_token_id=self.t5_config.decoder_start_token_id,
             repetition_penalty=1.5, # 重复词惩罚
             # length_penalty=2.5,  # <0鼓励生成长句子
+            eos_token_id=1,
+            pad_token_id=0,
             )
 
         return result

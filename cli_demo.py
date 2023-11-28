@@ -1,5 +1,7 @@
 import platform
 import os
+import time
+from threading import Thread
 
 from rich.text import Text
 from rich.live import Live
@@ -22,16 +24,33 @@ def build_prompt(history: list[list[str]]) -> str:
         prompt += '\nchat_bot: {}\n'.format(response)
     return prompt
 
+STOP_CIRCLE: bool=False
+def circle_print(total_time: int=60) -> None:
+    global STOP_CIRCLE
+    '''非stream chat打印忙碌状态
+    '''
+    list_circle = ["\\", "|", "/", "—"]
+    for i in range(total_time * 4):
+        time.sleep(0.25)
+        print("\r{}".format(list_circle[i % 4]), end="", flush=True)
+
+        if STOP_CIRCLE: break
+
+    print("\r", end='', flush=True)
+
 
 def chat(stream: bool=True) -> None:
+    global  STOP_CIRCLE
     history = []
     turn_count = 0
 
     while True:
-        input_txt = input('user: ')
+        print('\r\033[0;33;40m用户：\033[0m', end='', flush=True)
+        input_txt = input()
 
         if len(input_txt) == 0:
-            print('please input somthing')
+            print('请输入问题')
+            continue
         
         # 退出
         if input_txt.lower() in ('exit', 'quite'):
@@ -46,8 +65,17 @@ def chat(stream: bool=True) -> None:
             continue
         
         if not stream:
+            STOP_CIRCLE = False
+            thread = Thread(target=circle_print)
+            thread.start()
+
             outs = chat_bot.chat(input_txt)
-            print("chat_bot:\n{}\n".format(outs))
+
+            STOP_CIRCLE = True
+            thread.join()
+
+            print("\r\033[0;32;40mChatBot：\033[0m\n{}\n\n".format(outs), end='')
+           
             continue
 
         history.append([input_txt, ''])
@@ -69,4 +97,4 @@ def chat(stream: bool=True) -> None:
         turn_count += 1
 
 if __name__ == '__main__':
-    chat(stream=True)
+    chat(stream=False)
