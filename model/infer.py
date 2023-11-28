@@ -3,7 +3,8 @@ import platform
 
 import torch
 
-from transformers import TextIteratorStreamer
+from transformers import TextIteratorStreamer,PreTrainedTokenizerFast
+from safetensors.torch import load_model
 
 from tokenizers import Tokenizer
 from accelerate import init_empty_weights, dispatch_model,load_checkpoint_in_model,load_checkpoint_and_dispatch
@@ -26,19 +27,32 @@ class ChatBot:
         self.model_config = model_config_class()
 
         # file_name=None会自动生成以当前日期命名的log文件名
-        self.logger = Logger('chat_logs', std_out=True, save2file=True, file_name=None)
+        # self.logger = Logger('chat_logs', std_out=True, save2file=True, file_name=None)
 
          # 初始化tokenizer
-        tokenizer = Tokenizer.from_file(infer_config.tokenizer_file)
-        tokenizer.enable_padding(length=infer_config.max_seq_len)
-        tokenizer.enable_truncation(max_length=infer_config.max_seq_len)
-        self.tokenizer = tokenizer
-        self.encode = tokenizer.encode
-        self.decode_batch = tokenizer.decode_batch
+        # tokenizer = Tokenizer.from_file(infer_config.tokenizer_file)
+        # tokenizer.enable_padding(length=infer_config.max_seq_len)
+        # tokenizer.enable_truncation(max_length=infer_config.max_seq_len)
+        # self.tokenizer = tokenizer
+        # self.encode = tokenizer.encode
+        # self.decode_batch = tokenizer.decode_batch
 
+        tokenizer_obj = Tokenizer.from_file(infer_config.tokenizer_file)
+        tokenizer = PreTrainedTokenizerFast(tokenizer_object=tokenizer_obj)
+        tokenizer.pad_token = '[PAD]'
+        tokenizer.pad_token_id = tokenizer_obj.token_to_id('[PAD]')
+        tokenizer.unk_token = '[UNK]'
+        tokenizer.unk_token_id = tokenizer_obj.token_to_id('[UNK]')
+        tokenizer.eos_token = '[EOS]'
+        tokenizer.eos_token_id = tokenizer_obj.token_to_id('[EOS]')
+
+        self.tokenizer = tokenizer
+        self.encode = tokenizer.encode_plus
+        self.batch_decode = tokenizer.batch_decode
+        
         empty_model = None
         with init_empty_weights():
-            empty_model = TextToTextModel(config=self.model_config, decoder_start_token_id=tokenizer.token_to_id('[PAD]'))
+            empty_model = TextToTextModel(config=self.model_config, decoder_start_token_id=tokenizer.pad_token_id)
 
         if torch.cuda.device_count() >= 2 and platform.system().lower() == 'linux':
             # 量化配置
@@ -63,21 +77,34 @@ class ChatBot:
             )   
                 
         else:
-            self.model = load_checkpoint_and_dispatch(
-                model=empty_model,
-                checkpoint=infer_config.model_file,
-                device_map='auto',
-                dtype=torch.float16,
-            )
+            try:
+                self.model = load_checkpoint_and_dispatch(
+                    model=empty_model,
+                    checkpoint=infer_config.model_file,
+                    device_map='auto',
+                    dtype=torch.float16,
+                )
+            except Exception as e:
+                print(str(e), '`accelerate` load fail, try another load function.')
+                model = TextToTextModel(config=self.model_config, decoder_start_token_id=tokenizer.pad_token_id)
+
+                if  infer_config.model_file.endswith('.safetensors'):
+                    # load safetensors
+                    load_model(model.model, infer_config.model_file) 
+                else:
+                    # load torch checkpoint
+                    model.load_state_dict(torch.load(infer_config.model_file))  
+                self.model = model
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.model.to(self.device)
 
-        self.streamer = TextIteratorStreamer(tokenizer=tokenizer)
+        self.streamer = TextIteratorStreamer(tokenizer=tokenizer, clean_up_tokenization_spaces=True, skip_special_tokens=True)
 
     def stream_chat(self, input_txt: str) -> TextIteratorStreamer:
         encoded = self.encode(input_txt)
         
-        input_ids = torch.LongTensor([encoded.ids]).to(self.device)
+        input_ids = torch.LongTensor([encoded.input_ids]).to(self.device)
         attention_mask = torch.LongTensor([encoded.attention_mask]).to(self.device)
 
         generation_kwargs = {
@@ -98,7 +125,7 @@ class ChatBot:
         '''
         encoded = self.encode(input_txt)
         
-        input_ids = torch.LongTensor([encoded.ids]).to(self.device)
+        input_ids = torch.LongTensor([encoded.input_ids]).to(self.device)
         attention_mask = torch.LongTensor([encoded.attention_mask]).to(self.device)
 
         outputs = self.model.generate(
@@ -107,7 +134,7 @@ class ChatBot:
                             max_seq_len=self.infer_config.max_seq_len,
                         )
 
-        outputs = self.decode_batch(outputs.cpu().numpy(),  skip_special_tokens=True)
+        outputs = self.batch_decode(outputs.cpu().numpy(),  clean_up_tokenization_spaces=True, skip_special_tokens=True)
 
         # 删除decode出来字符间的空格
         outputs = [sentance.replace(' ', '') for sentance in outputs][0]

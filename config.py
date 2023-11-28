@@ -1,16 +1,22 @@
 from dataclasses import dataclass
 from os.path import dirname, abspath
 
-PROJECT_ROOT: str = abspath(dirname(__file__))
+# replace '\' on windows to '/'
+PROJECT_ROOT: str = '/'.join(abspath(dirname(__file__)).split('\\')) if '\\' in abspath(dirname(__file__)) else abspath(dirname(__file__))
 
 # ===================================================================================
 # 以下为推断的配置
 @dataclass
 class InferConfig:
     max_seq_len: int = 320                          # 回答的最大长度
-    mixed_precision: str = "fp8"                   # 混合精度 ''no','fp16','bf16' or 'fp8'
+    mixed_precision: str = "bf16"                   # 混合精度 ''no','fp16','bf16' or 'fp8'
 
-    model_file: str = PROJECT_ROOT + '/model_save/chat_small_t5.best.bin'
+    # 全量DPO模型文件
+    model_file: str = PROJECT_ROOT + '/model_save/chat_small_t5.best.dpo.bin'
+
+    # lora PDO 合并后的模型文件
+    # model_file: str = PROJECT_ROOT + '/model_save/chat_small_t5.best.dpo.lora_merged.bin'
+
     model_config_file: str = PROJECT_ROOT + '/model_save/model_config.json'
     tokenizer_file: str = PROJECT_ROOT + '/model_save/my_merged_tokenizer.json'
     
@@ -24,6 +30,33 @@ class InferConfig:
     log_level: str = 'info'
     #======================================
 
+
+#===================================================================================
+# 以下为dpo训练配置
+@dataclass
+class DpoConfig:
+    max_seq_len: int = 320  
+    mixed_precision: str = "fp8"
+    sft_model_file: str = PROJECT_ROOT + '/model_save/chat_small_t5.best.bin'
+    model_config_file: str = PROJECT_ROOT + '/model_save/model_config.json'
+    tokenizer_file: str = PROJECT_ROOT + '/model_save/my_merged_tokenizer.json'
+    dpo_train_file: str = PROJECT_ROOT + '/data/dpo_train.json'
+    dpo_eval_file: str = PROJECT_ROOT + '/data/dpo_eval.json'
+    adapter_file: str = PROJECT_ROOT + '/data/adapter_model.safetensors'
+
+    per_device_train_batch_size: int = 10
+    max_steps: int = 2048
+    gradient_accumulation_steps: int = 4
+    learning_rate: float = 1e-5
+    evaluation_strategy: str = "steps"
+    logging_first_step: bool = True
+    logging_steps: int = 10                      
+    eval_steps: int = 500
+    output_dir: str = PROJECT_ROOT + '/model_save/dpo'
+    warmup_steps: int = 50
+    fp16: bool = True
+    seed: int = 23333
+    beta: float = 0.1
 
 # ===================================================================================
 # 以下为训练的配置

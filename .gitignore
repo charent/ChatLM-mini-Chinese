@@ -22,3 +22,4 @@ data/*
 model_save/*
 !model_save/my_merged_tokenizer.json
 
+wandb/*
