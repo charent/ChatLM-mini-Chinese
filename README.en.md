@@ -142,8 +142,8 @@ For fine-tuning details, see the `train` method under `model/trainer.py`. When `
 ##  Preference optimization
 ### Preference optimization method
 1. Use RLHF (Reinforcement Learning from Human Feedback Optimization Method) for fine-tuning, which is also a PPO (Proximal Policy Optimization) method 
-     Step 1: Use the fine-tuning dataset to do supervised fine-tuning (SFT, Supervised Finetuning).
-     Step 2: Use the preference dataset (a prompt contains at least 2 responses, one wanted response and one unwanted response. Multiple responses can be sorted by score, with the most wanted one having the highest score) to train the reward model (RM, Reward Model). You can use the `peft` library to quickly build the Lora reward model.
+     Step 1: Use the fine-tuning dataset to do supervised fine-tuning (SFT, Supervised Finetuning). 
+     Step 2: Use the preference dataset (a prompt contains at least 2 responses, one wanted response and one unwanted response. Multiple responses can be sorted by score, with the most wanted one having the highest score) to train the reward model (RM, Reward Model). You can use the `peft` library to quickly build the Lora reward model. 
      Step 3: Use RM to perform supervised PPO training on the SFT model so that the model meets preferences.
 
 2. Use DPO (Direct Preference Optimization) fine-tuning (**This project uses the DPO fine-tuning method, which saves GPU memory**)
@@ -165,7 +165,7 @@ pythondpo_train.py
 ## Inference 
 Make sure there are the following files in the `model_save` directory:
 ```bash
-chat_small_t5.best.bin
+chat_small_t5.best.dpo.bin
 model_config.json
 my_merged_tokenizer.json
 ```

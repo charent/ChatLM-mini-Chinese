@@ -132,9 +132,10 @@ accelerate launch --multi_gpu --num_processes 2 ./train.py --is_finetune=True
 
 ## 3.5 偏好优化
 ### 3.5.1 偏好优化方法
-1.  使用RLHF（强化学习人类反馈优化方法，Reinforcement Learning from Human Feedback）做微调，既是PPO方法（近似偏好优化,Proximal Policy Optimization）
-    步骤1：使用微调数据集做有监督微调（SFT， Supervised Finetuning）。
-    步骤2：使用偏好数据集（一个prompt至少包含2个回复，一个想要的回复，一个不想要的回复。多个回复可以按照分数排序，最想要的分数最高）训练奖励模型（RM， Reward Model）。可使用`peft`库快速搭建Lora奖励模型。
+1.  使用RLHF（强化学习人类反馈优化方法，Reinforcement Learning from Human Feedback）做微调，既是PPO方法（近似偏好优化,Proximal Policy Optimization） 
+    
+    步骤1：使用微调数据集做有监督微调（SFT， Supervised Finetuning）。 
+    步骤2：使用偏好数据集（一个prompt至少包含2个回复，一个想要的回复，一个不想要的回复。多个回复可以按照分数排序，最想要的分数最高）训练奖励模型（RM， Reward Model）。可使用`peft`库快速搭建Lora奖励模型。 
     步骤3：利用RM对SFT模型进行有监督PPO训练，使得模型满足偏好。 
 
 2.  使用DPO（直接偏好优化，Direct Preference Optimization）微调（**本项目采用DPO微调方法，比较节省显存**）
@@ -155,7 +156,7 @@ python dpo_train.py
 ## 3.6 推理 
 确保`model_save`目录下有以下文件：
 ```bash
-chat_small_t5.best.bin
+chat_small_t5.best.dpo.bin
 model_config.json
 my_merged_tokenizer.json
 ```
