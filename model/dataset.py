@@ -99,7 +99,7 @@ class MyDataset(Dataset):
         encode = self.encode
         prompt_encoded, response_encoded = encode(prompt), encode(response)
        
-        return prompt_encoded.ids, prompt_encoded.attention_mask, response_encoded.ids
+        return prompt_encoded.ids, prompt_encoded.attention_mask, response_encoded.ids, response_encoded.attention_mask
 
     @staticmethod
     def collate_fn(data: list[list]) -> dict:
@@ -109,11 +109,13 @@ class MyDataset(Dataset):
         input_ids = array([item[0] for item in data], dtype=int64)
         input_mask = array([item[1] for item in data], dtype=int64)
         target_ids = array([item[2] for item in data], dtype=int64)
+        target_mask = array([item[3] for item in data], dtype=int64)
 
         ret = {
             'input_ids': LongTensor(input_ids),
             'input_mask': LongTensor(input_mask),
             'target_ids': LongTensor(target_ids),
+            'target_mask': LongTensor(target_mask),
         }
         return ret
     
@@ -179,10 +181,10 @@ class ParquetDataset:
         response = encode_batch(item['response'])
 
         input_ids, input_mask = [p.ids for p in prompt], [p.attention_mask for p in prompt]
-        target_ids = [r.ids for r in response]
-        # target_mask = [r.attention_mask for r in response]
+        target_ids,  = [r.ids for r in response]
+        target_mask = [r.attention_mask for r in response]
 
-        return {'input_ids': input_ids, 'input_mask': input_mask, 'target_ids': target_ids}
+        return {'input_ids': input_ids, 'input_mask': input_mask, 'target_ids': target_ids, 'target_mask': target_mask, }
     
     def __getitem__(self, index: str) -> datasets.Dataset:
         '''
@@ -251,7 +253,7 @@ if __name__ == '__main__':
     for epoch in range(10):
         print('epoch: {}'.format(epoch))
         for step, batch in enumerate(dataloader):
-            x, x_mask, y = batch['input_ids'], batch['input_mask'], batch['target_ids']
+            x, x_mask, y, y_mask = batch['input_ids'], batch['input_mask'], batch['target_ids']
             # print('epoch: {}, step:{},'.format(epoch, step),x[0][0:10])
             if step % 500 == 0:
                 print(step, x.shape, y.shape)
@@ -266,7 +268,7 @@ if __name__ == '__main__':
     step = 0
     for epoch in range(2):
         for batch in dataloader:
-            x, x_mask, y = batch['input_ids'], batch['input_mask'], batch['target_ids']
+            x, x_mask, y, y_mask = batch['input_ids'], batch['input_mask'], batch['target_ids']
             step += 1
             print(x.shape, x_mask.shape, y.shape)
             break
