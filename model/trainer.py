@@ -336,7 +336,7 @@ class ChatTrainer:
             for step, batch_data in enumerate(train_dataloader):
 
                 input_ids, input_mask = batch_data['input_ids'], batch_data['input_mask']
-                target_ids = batch_data['target_ids']
+                target_ids, target_mask = batch_data['target_ids'], batch_data['target_mask']
 
                 # for t5 model, all labels set to `-100` are ignored (masked)
                 target_ids[target_ids == decoder_start_token_id] = -100
@@ -344,7 +344,8 @@ class ChatTrainer:
                 outputs = model(
                     input_ids=input_ids,
                     input_mask=input_mask,
-                    labels=target_ids
+                    labels=target_ids,
+                    decoder_attention_mask=target_mask,
                 )
 
                 loss = outputs.loss.mean() / accumulation_steps

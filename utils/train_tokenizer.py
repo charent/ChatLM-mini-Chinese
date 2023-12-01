@@ -359,6 +359,21 @@ def change_cropus_dict_to_tokenize() -> None:
         
     tokenizer.save(PROJECT_ROOT + '/model_save/my_merged_tokenizer.json')
 
+    # TODO
+    # 将Tokenizer转换为 PreTrainedTokenizerFast
+    # from transformers import PreTrainedTokenizerFast
+
+    # tokenizer_obj = Tokenizer.from_file(config.tokenizer_file)
+    # tokenizer = PreTrainedTokenizerFast(tokenizer_object=tokenizer_obj)
+    # tokenizer.pad_token = '[PAD]'
+    # tokenizer.pad_token_id = tokenizer_obj.token_to_id('[PAD]')
+    # tokenizer.unk_token = '[UNK]'
+    # tokenizer.unk_token_id = tokenizer_obj.token_to_id('[UNK]')
+    # tokenizer.eos_token = '[EOS]'
+    # tokenizer.eos_token_id = tokenizer_obj.token_to_id('[EOS]')
+
+    # tokenizer.save_pretrained('fast_tokenizer.json')
+
 
 if __name__ == '__main__':
     # train_my_huggingface_tokenizer()

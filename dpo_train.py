@@ -61,7 +61,11 @@ def train_dpo(config: DpoConfig, peft_config: LoraConfig=None) -> None:
     model = TextToTextModel(config=model_config, decoder_start_token_id=tokenizer.pad_token_id)
     model.load_state_dict(torch.load(config.sft_model_file))
     model_train = model.model # un_pkg model
+    # tokenizer.save_pretrained('./model_save/chat_lm_small_tokenizer')
 
+    # float32 model param size
+    print('model parameters size: {:.3f} M.'.format(sum([p.numel() for p in model.parameters()]) * 4 / 1024 /1024))
+    
     model_ref = TextToTextModel(config=model_config, decoder_start_token_id=tokenizer.pad_token_id)
     model_ref.load_state_dict(torch.load(config.sft_model_file))
     model_ref = model_ref.model

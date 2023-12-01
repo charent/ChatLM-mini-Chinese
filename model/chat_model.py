@@ -67,11 +67,12 @@ class TextToTextModel(Module):
         
         self.model = T5ForConditionalGeneration(t5_config)
 
-    def forward(self, input_ids: LongTensor, input_mask: LongTensor, labels: LongTensor, **args) -> Tensor:
+    def forward(self, input_ids: LongTensor, input_mask: LongTensor, labels: LongTensor, decoder_attention_mask: LongTensor=None,  **args) -> Tensor:
         return self.model(
             input_ids=input_ids,
             attention_mask=input_mask,
             labels=labels,
+            decoder_attention_mask=decoder_attention_mask,
             **args
             )
 
