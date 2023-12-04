@@ -10,6 +10,23 @@ from nltk.translate.bleu_score import sentence_bleu
 import numpy as np
 import ujson
 
+# 结束标点符号
+END_PUN = set(".。!！）)》>}】?？\"”\n")
+
+def fixed_response(item: str) -> str:
+    '''
+    修复被截断的回答，从末尾往回找第一个结束标点
+    '''
+    if item[-1] in END_PUN: return item
+
+    n = len(item)
+    i = n - 1
+    while i > 0 and item[i] not in END_PUN:
+        i -= 1
+
+    return ''.join(item[0: i + 1])
+
+
 def get_free_space_of_disk(folder: str='./') -> float:
     '''
     获取指定目录所在磁盘大小，返回单位: GB

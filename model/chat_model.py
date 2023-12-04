@@ -117,12 +117,14 @@ class TextToTextModel(Module):
             generation_config.do_sample = True
             generation_config.top_p = 0.95
             generation_config.no_repeat_ngram_size = 4
-            generation_config.early_stopping =True
+            generation_config.early_stopping = True
         elif search_type == 'sampling':
+            generation_config.num_beams = 1
             generation_config.do_sample = True
-            generation_config.top_k = 0 # 关闭 top k
-            generation_config.temperature = 0.95   # 越低概率越趋向于均匀分布
-            generation_config.top_p = 0.20
+            generation_config.top_k = 50
+            generation_config.temperature = 0.98   # 越低概率越趋向于均匀分布
+            generation_config.top_p = 0.80
+            generation_config.no_repeat_ngram_size = 4
         elif search_type == 'contrastive':
             generation_config.penalty_alpha = 0.5
             generation_config.top_k = 50
