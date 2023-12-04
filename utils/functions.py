@@ -11,7 +11,7 @@ import numpy as np
 import ujson
 
 # 结束标点符号
-END_PUN = set(".。!！）)》>}】?？\"”\n")
+END_PUN = set(".。!！）)》}】?？\"”")
 
 def fixed_response(item: str) -> str:
     '''
@@ -26,6 +26,18 @@ def fixed_response(item: str) -> str:
 
     return ''.join(item[0: i + 1])
 
+
+def fixed_en(stentance: str)->str:
+    '''恢复被删除的英文空格
+    '''
+    n = len(stentance)
+    new_sentance = []
+    for i in range(0, n):
+        if stentance[i].isupper() and i - 1 >= 0 and stentance[i - 1].islower() :
+            new_sentance.append(' ')
+        new_sentance.append(stentance[i])
+
+    return ''.join(new_sentance)
 
 def get_free_space_of_disk(folder: str='./') -> float:
     '''

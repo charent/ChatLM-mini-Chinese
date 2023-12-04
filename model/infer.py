@@ -13,7 +13,7 @@ from accelerate.utils import BnbQuantizationConfig, load_and_quantize_model
 # import 自定义类和函数
 from model.chat_model import TextToTextModel
 from utils.logger import Logger
-from utils.functions import json_to_dataclass, fixed_response
+from utils.functions import json_to_dataclass, fixed_response, fixed_en
 
 from config import InferConfig
 
@@ -113,25 +113,13 @@ class ChatBot:
             'attention_mask': attention_mask,
             'max_seq_len': self.infer_config.max_seq_len,
             'streamer': self.streamer,
+            'search_type': 'greedy',
         }
 
-        thread = Thread(target=self.model.stream_generate, kwargs=generation_kwargs)
+        thread = Thread(target=self.model.my_generate, kwargs=generation_kwargs)
         thread.start()
         
         return self.streamer
-
-    @staticmethod
-    def fixed_en(stentance: str)->str:
-        '''恢复被删除的英文空格
-        '''
-        n = len(stentance)
-        new_sentance = []
-        for i in range(0, n):
-            if stentance[i].isupper() and i - 1 >= 0 and stentance[i - 1].islower() :
-                new_sentance.append(' ')
-            new_sentance.append(stentance[i])
-            
-        return ''.join(new_sentance)
     
     def chat(self, input_txt: str, ) -> str:
         '''
@@ -153,6 +141,6 @@ class ChatBot:
         # 删除decode出来字符间的空格
         outputs = [sentance.replace(' ', '') for sentance in outputs][0]
         outputs = fixed_response(outputs)
-        outputs = self.fixed_en(outputs)
+        outputs = fixed_en(outputs)
 
         return outputs

@@ -41,7 +41,15 @@ CPU: 28 vCPU Intel(R) Xeon(R) Gold 6330 CPU @ 2.00GHz
 3. dpo直接偏好优化：数据集[alpaca-gpt4-data-zh](https://huggingface.co/datasets/c-s-ale/alpaca-gpt4-data-zh)作为`chosen`文本，步骤`2`中SFT模型对数据集中的prompt做批量`generate`，得到`rejected`文本，耗时1天，dpo全量偏好优化，学习率`le-5`，半精度`fp16`,共`2`个`epoch`，耗时2h。
 
 ## 2.4 对话效果展示
+### 2.4.1 stream chat
+`huggingface`的 `TextIteratorStreamer`只支持`greedy search`，效果一般。
+![](./img/stream_chat.gif)
 
+### 2.4.2 chat
+使用`beam search`，效果好于`greedy search`。
+![](./img/chat.gif)
+
+### 2.4.3 其他对话展示
 ![](./img/show1.png)
 ![](./img/show2.png)
 ![](./img/show3.png)

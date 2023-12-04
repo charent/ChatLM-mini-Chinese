@@ -43,6 +43,13 @@ GPU: RTX A5000 (24GB) * 2
 3. DPO direct preference optimization: dataset [alpaca-gpt4-data-zh](https://huggingface.co/datasets/c-s-ale/alpaca-gpt4-data-zh) as `chosen` text, step`2` The SFT model batch `generate` the prompts in the data set, and get the `rejected` text, which takes 1 day, dpo full model preference optimization, learning rate `le-5`, half precision `fp16`, training `2 `epoch, taking 2 hours.
 
 ## Dialogue effect display
+### stream chat
+`huggingface transformers`'s `TextIteratorStreamer` only supports `greedy search`, and the effect is average.
+![](./img/stream_chat.gif)
+
+### chat
+Using `beam search` is better than `greedy search`
+![](./img/chat.gif)
 
 ![](./img/show1.png)
 ![](./img/show2.png)
