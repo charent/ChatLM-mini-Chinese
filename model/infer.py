@@ -128,10 +128,11 @@ class ChatBot:
         input_ids = torch.LongTensor([encoded.input_ids]).to(self.device)
         attention_mask = torch.LongTensor([encoded.attention_mask]).to(self.device)
 
-        outputs = self.model.generate(
+        outputs = self.model.my_generate(
                             input_ids=input_ids,
                             attention_mask=attention_mask,
                             max_seq_len=self.infer_config.max_seq_len,
+                            search_type='beam',
                         )
 
         outputs = self.batch_decode(outputs.cpu().numpy(),  clean_up_tokenization_spaces=True, skip_special_tokens=True)
