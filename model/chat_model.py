@@ -84,6 +84,7 @@ class TextToTextModel(Module):
                 attention_mask: LongTensor, 
                 max_seq_len: int=256,
                 search_type: str='beam',
+                streamer: TextIteratorStreamer=None,
             ) -> Tensor:
         '''
         search_type: ['greedy', 'beam', 'sampling', 'contrastive', ]
@@ -133,7 +134,7 @@ class TextToTextModel(Module):
             inputs=input_ids,
             attention_mask=attention_mask,
             generation_config=generation_config,
-
+            streamer=streamer,
             )
 
         return result
@@ -169,23 +170,6 @@ class TextToTextModel(Module):
             )
 
         return result
-    
-    @torch.no_grad()
-    def stream_generate(self,
-                    input_ids: LongTensor, 
-                    attention_mask: LongTensor, 
-                    max_seq_len: int=256,
-                    streamer: TextIteratorStreamer=None,
-                ) -> None:
-        
-        self.model.generate(
-            inputs=input_ids,
-            attention_mask=attention_mask,
-            streamer=streamer,
-            max_length=max_seq_len, 
-            
-        )
-    
 
 if __name__ == '__main__':
     model_dir = PROJECT_ROOT + '/model_save/t2t/'

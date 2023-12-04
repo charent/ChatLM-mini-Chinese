@@ -8,13 +8,14 @@ from rich.live import Live
 
 from model.infer import ChatBot
 from config import InferConfig
+from utils.functions import fixed_response, fixed_en
 
 infer_config = InferConfig()
 chat_bot = ChatBot(infer_config=infer_config)
 
 clear_cmd = 'cls' if platform.system().lower() == 'windows' else 'clear'
 
-welcome_txt = '欢迎使用ChatBot，输入`exit`或者`quit` 退出，输入`cls`或者`clear`清屏。'
+welcome_txt = '欢迎使用ChatBot，输入`exit`或者`quit` 退出，输入`cls`或者`clear`清屏。\n'
 print(welcome_txt)
 
 def build_prompt(history: list[list[str]]) -> str:
@@ -89,7 +90,7 @@ def chat(stream: bool=True) -> None:
                 stream_txt += word
                 rich_text.append(word)
 
-        # history[turn_count][1] = stream_txt[0: stream_txt.rfind('。') + 1]
+        stream_txt = fixed_en(fixed_response(stream_txt))
         history[turn_count][1] = stream_txt
         
         os.system(clear_cmd)
