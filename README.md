@@ -42,7 +42,7 @@ CPU: 28 vCPU Intel(R) Xeon(R) Gold 6330 CPU @ 2.00GHz
 
 ## 2.4 对话效果展示
 ### 2.4.1 stream chat
-`huggingface`的 `TextIteratorStreamer`只支持`greedy search`，效果一般。
+`huggingface transformers`的 `TextIteratorStreamer`只支持`greedy search`，效果一般。
 ![](./img/stream_chat.gif)
 
 ### 2.4.2 chat

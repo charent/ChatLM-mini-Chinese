@@ -21,8 +21,8 @@ print(welcome_txt)
 def build_prompt(history: list[list[str]]) -> str:
     prompt = welcome_txt
     for query, response in history:
-        prompt += '\nuser: {}'.format(query)
-        prompt += '\nchat_bot: {}\n'.format(response)
+        prompt += '\n\033[0;33;40m用户：\033[0m{}'.format(query)
+        prompt += '\n\033[0;32;40mChatBot：\033[0m\n{}\n'.format(response)
     return prompt
 
 STOP_CIRCLE: bool=False
@@ -83,7 +83,7 @@ def chat(stream: bool=True) -> None:
         stream_txt = ''
         streamer = chat_bot.stream_chat(input_txt)
         rich_text = Text()
-
+        print("\r\033[0;32;40mChatBot：\033[0m\n", end='')
         with Live(rich_text, refresh_per_second=10) as live: 
             for i, word in enumerate(streamer):
                 word = word.replace(' ', '')
@@ -98,4 +98,4 @@ def chat(stream: bool=True) -> None:
         turn_count += 1
 
 if __name__ == '__main__':
-    chat(stream=False)
+    chat(stream=True)
