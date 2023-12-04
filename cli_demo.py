@@ -98,4 +98,4 @@ def chat(stream: bool=True) -> None:
         turn_count += 1
 
 if __name__ == '__main__':
-    chat(stream=True)
+    chat(stream=False)
