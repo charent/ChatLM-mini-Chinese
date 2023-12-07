@@ -2,7 +2,23 @@
 
 # Introduction
 *阅读中文文档 [中文](README.md).*
-The parameters of today's large language models tend to be large, and consumer-level computers are relatively slow for simple inference, let alone training a model from scratch. The original intention of this project is to sort out the entire training process of the generative language model, from data cleaning, tokenizer training, model pre-training, model fine-tuning to the final product, and form its own engineering system instead of simply calling `from_pretrained`. The model parameters of this project are only 0.7B. It can be trained on a machine with a minimum of 16G of GPU memory (`fp16` or `bf16`). Inference only requires a minimum of 1.4G of GPU memory (`fp8`. If you do `int4` quantization, you can continue to compress ).
+The parameters of today's large language models tend to be large, and consumer-level computers are relatively slow for simple inference, let alone training a model from scratch.
+The goal of this project is to sort out the entire training process of a generative language model, including data cleaning, tokenizer training, model pre-training, SFT instruction fine-tuning, DPO preference optimization, etc. The model parameters of Chat-LM-small are only 0.7B. It can be trained on a machine with a minimum of 16GB of video memory (`fp16` or `bf16`). Inference only requires at least 1GB of video memory (`bf16`, if you use `int8`, `int4` Quantization, you can also continue to compress).
+
+- Make public all pre-training, SFT instruction fine-tuning, and DPO preference optimization datasets.
+- Use the `Huggingface` NLP framework, including `transformers`, `accelerate`, `trl`, `peft`, etc.
+- Supports training, fine-tuning and inference on a single machine with a single GPU or with multiple GPUs on a single machine.
+- Pre-training: Integrated into end-to-end `text-to-text` pre-training, non-`mask` mask prediction pre-training.
+     - Open source all data cleaning, dataset construction, dataset loading optimization and other processes;
+     - tokenizer multi-process word frequency statistics, supports tokenizer training of `sentencepiece` and `huggingface tokenizers`;
+     - Pre-training supports breakpoints, and training can be continued from the breakpoint;
+     - Large dataset (GB level) streaming loading, supports buffer data shuffling, configuration `batch_size=16, max_len=320`, supports training on a machine with at least 16GB RAM + 16GB GPU memory;
+     - Training log record.
+- SFT fine-tuning: prompt instruction fine-tuning, low learning rate, only training the decoder layer.
+     - SFT supports breakpoints to continue training.
+- Preference optimization: Use DPO to optimize all preferences.
+     - Support using peft lora for preference optimization.
+     - Supports model merging, Lora adapter can be merged into the original model.
 
 # Chat-LM-small Model training process
 ## 2.1 Datasets
@@ -37,10 +53,10 @@ GPU: RTX A5000 (24GB) * 2
 1. Pre-training: The learning rate is a dynamic learning rate from `1e-4` to `5e-3`, and the training time is 8 days. Training loss:
 ![traing loss](img/train_loss.png)
 
-2. Prompt supervised fine-tuning (SFT): Use the `belle` instruction trainingdata set (the instruction and answer lengths are both below 320), the learning rate is a dynamic learning rate from `1e-5` to `1e-4`, and the `encoder is frozen `Parameters, only fine-tune the `decoder` parameters, and the fine-tuning time is 1 day. Fine-tuning loss:
+2. Prompt supervised fine-tuning (SFT): Use the `belle` instruction trainingdataset (the instruction and answer lengths are both below 320), the learning rate is a dynamic learning rate from `1e-5` to `1e-4`, and the `encoder is frozen `Parameters, only fine-tune the `decoder` parameters, and the fine-tuning time is 1 day. Fine-tuning loss:
 ![finetune loss](img/finetune_loss.png)
 
-3. DPO direct preference optimization: dataset [alpaca-gpt4-data-zh](https://huggingface.co/datasets/c-s-ale/alpaca-gpt4-data-zh) as `chosen` text, step`2` The SFT model batch `generate` the prompts in the data set, and get the `rejected` text, which takes 1 day, dpo full model preference optimization, learning rate `le-5`, half precision `fp16`, training `2 `epoch, taking 2 hours.
+3. DPO direct preference optimization: dataset [alpaca-gpt4-data-zh](https://huggingface.co/datasets/c-s-ale/alpaca-gpt4-data-zh) as `chosen` text, step`2` The SFT model batch `generate` the prompts in the dataset, and get the `rejected` text, which takes 1 day, dpo full model preference optimization, learning rate `le-5`, half precision `fp16`, training `2 `epoch, taking 2 hours.
 
 ## Dialogue effect display
 ### stream chat
