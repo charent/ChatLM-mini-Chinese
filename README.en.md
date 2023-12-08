@@ -182,7 +182,14 @@ For fine-tuning details, see the `train` method under `model/trainer.py`. When `
 
 ### running DPO optimization
 ``` bash
-pythondpo_train.py
+python dpo_train.py
+```
+When you see prompted below on CMD, select 3
+```bash
+wandb: (1) Create a W&B account
+wandb: (2) Use an existing W&B account
+wandb: (3) Don't visualize my results
+wandb: Enter your choice: 3
 ```
 
 ## Inference 

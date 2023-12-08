@@ -103,7 +103,7 @@ class ChatBot:
         self.streamer = TextIteratorStreamer(tokenizer=tokenizer, clean_up_tokenization_spaces=True, skip_special_tokens=True)
 
     def stream_chat(self, input_txt: str) -> TextIteratorStreamer:
-        encoded = self.encode(input_txt)
+        encoded = self.encode(input_txt + '[EOS]')
         
         input_ids = torch.LongTensor([encoded.input_ids]).to(self.device)
         attention_mask = torch.LongTensor([encoded.attention_mask]).to(self.device)
@@ -137,6 +137,9 @@ class ChatBot:
                         )
 
         outputs = self.batch_decode(outputs.cpu().numpy(),  clean_up_tokenization_spaces=True, skip_special_tokens=True)
+
+        if len(outputs) == 0 or len(outputs[0]) == 0:
+            return "我是一个参数很少的AI模型🥺，知识库较少，无法直接回答您的问题，换个问题试试吧👋"
 
         # 删除decode出来字符间的空格
         outputs = [sentance.replace(' ', '') for sentance in outputs][0]

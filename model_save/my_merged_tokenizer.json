@@ -14,7 +14,7 @@
     },
     {
       "id": 1,
-      "content": "[CLS]",
+      "content": "[EOS]",
       "single_word": false,
       "lstrip": false,
       "rstrip": false,
@@ -41,7 +41,7 @@
     },
     {
       "id": 4,
-      "content": "[EOS]",
+      "content": "[CLS]",
       "single_word": false,
       "lstrip": false,
       "rstrip": false,
@@ -80,10 +80,10 @@
     "fuse_unk": false,
     "vocab": {
       "[PAD]": 0,
-      "[CLS]": 1,
+      "[EOS]": 1,
       "[SEP]": 2,
       "[BOS]": 3,
-      "[EOS]": 4,
+      "[CLS]": 4,
       "[MASK]": 5,
       "[UNK]": 6,
       "在": 7,

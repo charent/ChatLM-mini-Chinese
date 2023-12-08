@@ -90,7 +90,10 @@ def chat(stream: bool=True) -> None:
                 stream_txt += word
                 rich_text.append(word)
 
-        stream_txt = fixed_en(fixed_response(stream_txt))
+        if len(stream_txt) != 0:
+            stream_txt = fixed_en(fixed_response(stream_txt))
+        else:
+            stream_txt = "我是一个参数很少的AI模型🥺，知识库较少，无法直接回答您的问题，换个问题试试吧👋"
         history[turn_count][1] = stream_txt
         
         os.system(clear_cmd)

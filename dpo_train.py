@@ -34,8 +34,10 @@ def get_dataset(split: str, file: str, cache_dir: str = None) -> Dataset:
     def split_prompt_and_responses(sample: dict) -> Dict[str, str]:
         return {
             "prompt": sample["prompt"],
-            "chosen": sample["chosen"],
-            "rejected": sample["reject"],
+            
+            # add an eos token for signal that end of sentance, using in generate.
+            "chosen": sample["chosen"] + '[EOS]',
+            "rejected": sample["reject"]+ '[EOS]',
         }
 
     return dataset.map(split_prompt_and_responses)
@@ -87,12 +89,14 @@ def train_dpo(config: DpoConfig, peft_config: LoraConfig=None) -> None:
         logging_first_step=True,
         logging_steps=config.logging_steps,  # match results in blog post
         eval_steps=config.eval_steps,
+        save_steps=config.eval_steps,
         output_dir=config.output_dir,
-        optim="rmsprop",
+        optim="adafactor",
         warmup_steps=config.warmup_steps,
         bf16=False,
         fp16=config.fp16,
-        seed=config.seed
+        seed=config.seed,
+        logging_dir=config.log_dir,
     )
 
     # 6. 初始化 DPO trainer
@@ -128,10 +132,11 @@ def train_dpo(config: DpoConfig, peft_config: LoraConfig=None) -> None:
     dpo_trainer.accelerator.wait_for_everyone()
     model.model =  dpo_trainer.model
     
-    if peft_config is None:
+    if peft_config is not None:
         sate_dict_dir = config.sft_model_file + '.dpo.lora.bin'
-        torch.save(model.state_dict(), sate_dict_dir)
-        print('save sate dict to: {}'.format(sate_dict_dir))
+
+    torch.save(model.state_dict(), sate_dict_dir)
+    print('save sate dict to: {}'.format(sate_dict_dir))
 
 def merge_lora_weight_into_model(config: DpoConfig, peft_config: LoraConfig) -> None:
 
