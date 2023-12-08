@@ -178,6 +178,14 @@ accelerate launch --multi_gpu --num_processes 2 ./train.py --is_finetune=True
 python dpo_train.py
 ```
 
+出现以下提示时，选择3即可
+```bash
+wandb: (1) Create a W&B account
+wandb: (2) Use an existing W&B account
+wandb: (3) Don't visualize my results
+wandb: Enter your choice: 3
+```
+
 ## 3.6 推理 
 确保`model_save`目录下有以下文件：
 ```bash

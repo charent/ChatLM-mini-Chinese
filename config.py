@@ -35,14 +35,14 @@ class InferConfig:
 # 以下为dpo训练配置
 @dataclass
 class DpoConfig:
-    max_seq_len: int = 320  
-    mixed_precision: str = "fp8"
+    max_seq_len: int = 320 + 8                  # 8 for eos token 
     sft_model_file: str = PROJECT_ROOT + '/model_save/chat_small_t5.best.bin'
     model_config_file: str = PROJECT_ROOT + '/model_save/model_config.json'
     tokenizer_file: str = PROJECT_ROOT + '/model_save/my_merged_tokenizer.json'
     dpo_train_file: str = PROJECT_ROOT + '/data/dpo_train.json'
     dpo_eval_file: str = PROJECT_ROOT + '/data/dpo_eval.json'
     adapter_file: str = PROJECT_ROOT + '/data/adapter_model.safetensors'
+    log_dir: str = PROJECT_ROOT + '/logs/'
 
     per_device_train_batch_size: int = 10
     max_steps: int = 2048

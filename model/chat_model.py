@@ -61,6 +61,7 @@ class TextToTextModel(Module):
         t5_config.num_layers = config.num_layers
         t5_config.vocab_size = config.vocab_size
         t5_config.decoder_start_token_id = decoder_start_token_id
+        t5_config.eos_token_id = 1
         # print(t5_config)
 
         self.user_config = config
@@ -107,7 +108,8 @@ class TextToTextModel(Module):
         generation_config.decoder_start_token_id = self.t5_config.decoder_start_token_id
         generation_config.max_new_tokens = max_seq_len
         generation_config.repetition_penalty = 1.5 # 重复词惩罚
-
+        # generation_config.min_new_tokens=1
+        # generation_config.forced_eos_token_id = [1, 29] # eos 。
 
         if search_type == 'greedy':
             generation_config.num_beams = 1
@@ -118,6 +120,7 @@ class TextToTextModel(Module):
             generation_config.do_sample = True
             generation_config.top_p = 0.95
             generation_config.no_repeat_ngram_size = 4
+            generation_config.length_penalty = -2.0
             generation_config.early_stopping = True
         elif search_type == 'sampling':
             generation_config.num_beams = 1

@@ -97,6 +97,10 @@ class MyDataset(Dataset):
             prompt, response = next(self.sample_generator)
 
         encode = self.encode
+
+        # add an eos token note that end of resopnse, using in generate.
+        response += '[EOS]' 
+
         prompt_encoded, response_encoded = encode(prompt), encode(response)
        
         return prompt_encoded.ids, prompt_encoded.attention_mask, response_encoded.ids, response_encoded.attention_mask
