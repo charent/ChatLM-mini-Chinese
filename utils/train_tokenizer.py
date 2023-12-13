@@ -337,6 +337,9 @@ def change_cropus_dict_to_tokenize() -> None:
         if word not in words_dict:
             words_dict[word] = idx 
             idx += 1
+    
+    # add space
+    words_dict[' '] = idx
 
     # 构造merge数组
     words_merge_list = []
@@ -359,20 +362,22 @@ def change_cropus_dict_to_tokenize() -> None:
         
     tokenizer.save(PROJECT_ROOT + '/model_save/my_merged_tokenizer.json')
 
-    # TODO
-    # 将Tokenizer转换为 PreTrainedTokenizerFast
-    # from transformers import PreTrainedTokenizerFast
+def trained_tokenizer_to_PreTrainedTokenizerFast():
+    '''
+    将Tokenizer转换为 PreTrainedTokenizerFast
+    '''
+    from transformers import PreTrainedTokenizerFast
 
-    # tokenizer_obj = Tokenizer.from_file(config.tokenizer_file)
-    # tokenizer = PreTrainedTokenizerFast(tokenizer_object=tokenizer_obj)
-    # tokenizer.pad_token = '[PAD]'
-    # tokenizer.pad_token_id = tokenizer_obj.token_to_id('[PAD]')
-    # tokenizer.unk_token = '[UNK]'
-    # tokenizer.unk_token_id = tokenizer_obj.token_to_id('[UNK]')
-    # tokenizer.eos_token = '[EOS]'
-    # tokenizer.eos_token_id = tokenizer_obj.token_to_id('[EOS]')
+    tokenizer_obj = Tokenizer.from_pretrained(PROJECT_ROOT + '/model_save/my_merged_tokenizer.json')
+    tokenizer = PreTrainedTokenizerFast(tokenizer_object=tokenizer_obj)
+    tokenizer.pad_token = '[PAD]'
+    tokenizer.pad_token_id = tokenizer_obj.token_to_id('[PAD]')
+    tokenizer.unk_token = '[UNK]'
+    tokenizer.unk_token_id = tokenizer_obj.token_to_id('[UNK]')
+    tokenizer.eos_token = '[EOS]'
+    tokenizer.eos_token_id = tokenizer_obj.token_to_id('[EOS]')
 
-    # tokenizer.save_pretrained('fast_tokenizer.json')
+    tokenizer.save_pretrained(PROJECT_ROOT + '/model_save/tokenizer')
 
 
 if __name__ == '__main__':
@@ -386,6 +391,8 @@ if __name__ == '__main__':
 
     # merge_cropus_dict() 
     # change_cropus_dict_to_tokenize()   
+    # trained_tokenizer_to_PreTrainedTokenizerFast()
+
     pass
 
 

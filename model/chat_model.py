@@ -11,7 +11,7 @@ from config import T5ModelConfig
 from config import PROJECT_ROOT
 
 class TextToTextModel(Module):
-    def __init__(self, config: T5ModelConfig, decoder_start_token_id: int=0) -> None:
+    def __init__(self, config: T5ModelConfig, decoder_start_token_id: int=0, eos_token_id: int=1) -> None:
         '''
         默认T5Config {
             "d_ff": 2048,                   # 全连接层维度
@@ -61,7 +61,7 @@ class TextToTextModel(Module):
         t5_config.num_layers = config.num_layers
         t5_config.vocab_size = config.vocab_size
         t5_config.decoder_start_token_id = decoder_start_token_id
-        t5_config.eos_token_id = 1
+        t5_config.eos_token_id = eos_token_id
         # print(t5_config)
 
         self.user_config = config
@@ -107,9 +107,7 @@ class TextToTextModel(Module):
         generation_config.pad_token_id = 0
         generation_config.decoder_start_token_id = self.t5_config.decoder_start_token_id
         generation_config.max_new_tokens = max_seq_len
-        generation_config.repetition_penalty = 1.5 # 重复词惩罚
-        # generation_config.min_new_tokens=1
-        # generation_config.forced_eos_token_id = [1, 29] # eos 。
+        generation_config.repetition_penalty = 1.1 # 重复词惩罚
 
         if search_type == 'greedy':
             generation_config.num_beams = 1

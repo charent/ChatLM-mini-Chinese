@@ -6,14 +6,12 @@ import torch
 from transformers import TextIteratorStreamer,PreTrainedTokenizerFast
 from safetensors.torch import load_model
 
-from tokenizers import Tokenizer
-from accelerate import init_empty_weights, dispatch_model,load_checkpoint_in_model,load_checkpoint_and_dispatch
+from accelerate import init_empty_weights, dispatch_model,load_checkpoint_in_model, load_checkpoint_and_dispatch
 from accelerate.utils import BnbQuantizationConfig, load_and_quantize_model
 
 # import 自定义类和函数
 from model.chat_model import TextToTextModel
-from utils.logger import Logger
-from utils.functions import json_to_dataclass, fixed_response, fixed_en
+from utils.functions import json_to_dataclass, fixed_space
 
 from config import InferConfig
 
@@ -31,22 +29,7 @@ class ChatBot:
         # self.logger = Logger('chat_logs', std_out=True, save2file=True, file_name=None)
 
          # 初始化tokenizer
-        # tokenizer = Tokenizer.from_file(infer_config.tokenizer_file)
-        # tokenizer.enable_padding(length=infer_config.max_seq_len)
-        # tokenizer.enable_truncation(max_length=infer_config.max_seq_len)
-        # self.tokenizer = tokenizer
-        # self.encode = tokenizer.encode
-        # self.decode_batch = tokenizer.decode_batch
-
-        tokenizer_obj = Tokenizer.from_file(infer_config.tokenizer_file)
-        tokenizer = PreTrainedTokenizerFast(tokenizer_object=tokenizer_obj)
-        tokenizer.pad_token = '[PAD]'
-        tokenizer.pad_token_id = tokenizer_obj.token_to_id('[PAD]')
-        tokenizer.unk_token = '[UNK]'
-        tokenizer.unk_token_id = tokenizer_obj.token_to_id('[UNK]')
-        tokenizer.eos_token = '[EOS]'
-        tokenizer.eos_token_id = tokenizer_obj.token_to_id('[EOS]')
-
+        tokenizer = PreTrainedTokenizerFast.from_pretrained(infer_config.tokenizer_dir)
         self.tokenizer = tokenizer
         self.encode = tokenizer.encode_plus
         self.batch_decode = tokenizer.batch_decode
@@ -86,7 +69,7 @@ class ChatBot:
                     dtype=torch.float16,
                 )
             except Exception as e:
-                print(str(e), '`accelerate` load fail, try another load function.')
+                # print(str(e), '`accelerate` load fail, try another load function.')
                 model = TextToTextModel(config=self.model_config, decoder_start_token_id=tokenizer.pad_token_id)
 
                 if  infer_config.model_file.endswith('.safetensors'):
@@ -103,6 +86,9 @@ class ChatBot:
         self.streamer = TextIteratorStreamer(tokenizer=tokenizer, clean_up_tokenization_spaces=True, skip_special_tokens=True)
 
     def stream_chat(self, input_txt: str) -> TextIteratorStreamer:
+        '''
+        流式对话，线程启动后可返回，通过迭代streamer获取生成的文字，仅支持greedy search
+        '''
         encoded = self.encode(input_txt + '[EOS]')
         
         input_ids = torch.LongTensor([encoded.input_ids]).to(self.device)
@@ -123,8 +109,9 @@ class ChatBot:
     
     def chat(self, input_txt: str, ) -> str:
         '''
+        非流式生成，可以使用beam search、beam sample等方法生成文本。
         '''
-        encoded = self.encode(input_txt)
+        encoded = self.encode(input_txt + '[EOS]')
         
         input_ids = torch.LongTensor([encoded.input_ids]).to(self.device)
         attention_mask = torch.LongTensor([encoded.attention_mask]).to(self.device)
@@ -142,8 +129,6 @@ class ChatBot:
             return "我是一个参数很少的AI模型🥺，知识库较少，无法直接回答您的问题，换个问题试试吧👋"
 
         # 删除decode出来字符间的空格
-        outputs = [sentance.replace(' ', '') for sentance in outputs][0]
-        outputs = fixed_response(outputs)
-        outputs = fixed_en(outputs)
+        outputs = fixed_space(outputs[0])
 
         return outputs

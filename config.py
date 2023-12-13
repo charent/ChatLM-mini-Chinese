@@ -12,15 +12,14 @@ class InferConfig:
     mixed_precision: str = "bf16"                   # 混合精度 ''no','fp16','bf16' or 'fp8'
 
     # 全量DPO模型文件
-    model_file: str = PROJECT_ROOT + '/model_save/chat_small_t5.best.dpo.bin'
+    model_file: str = PROJECT_ROOT + '/model_save/chat_lm_t5.pre7.sft9w.dpo6k.bin'
 
     # lora PDO 合并后的模型文件
     # model_file: str = PROJECT_ROOT + '/model_save/chat_small_t5.best.dpo.lora_merged.bin'
 
     model_config_file: str = PROJECT_ROOT + '/model_save/model_config.json'
-    tokenizer_file: str = PROJECT_ROOT + '/model_save/my_merged_tokenizer.json'
+    tokenizer_dir: str = PROJECT_ROOT + '/model_save/tokenizer'
     
-    #======================================
     # this confing for api demo:
     api_key: str = ""
     host: str = '127.0.0.1'
@@ -28,42 +27,70 @@ class InferConfig:
     reload: bool = True
     workers: int = 1
     log_level: str = 'info'
-    #======================================
+    
 
 
 #===================================================================================
 # 以下为dpo训练配置
 @dataclass
 class DpoConfig:
-    max_seq_len: int = 320 + 8                  # 8 for eos token 
-    sft_model_file: str = PROJECT_ROOT + '/model_save/chat_small_t5.best.bin'
+    max_seq_len: int = 512 + 8                  # 8 for eos token 
+    sft_model_file: str = PROJECT_ROOT + '/model_save/sft_9w.bin'
     model_config_file: str = PROJECT_ROOT + '/model_save/model_config.json'
-    tokenizer_file: str = PROJECT_ROOT + '/model_save/my_merged_tokenizer.json'
-    dpo_train_file: str = PROJECT_ROOT + '/data/dpo_train.json'
-    dpo_eval_file: str = PROJECT_ROOT + '/data/dpo_eval.json'
-    adapter_file: str = PROJECT_ROOT + '/data/adapter_model.safetensors'
+
+    tokenizer_dir: str = PROJECT_ROOT + '/model_save/tokenizer'
+
+    dpo_train_file: str = PROJECT_ROOT + '/data/my_dpo_data.json'
+    dpo_eval_file: str = PROJECT_ROOT + '/data/my_dpo_eval.json'
+
+    adapter_file: str = PROJECT_ROOT + '/data/dpo/adapter_model.safetensors'
     log_dir: str = PROJECT_ROOT + '/logs/'
 
-    per_device_train_batch_size: int = 10
-    max_steps: int = 2048
-    gradient_accumulation_steps: int = 4
+    per_device_train_batch_size: int = 4
+    num_train_epochs: int = 4
+    gradient_accumulation_steps: int = 8
     learning_rate: float = 1e-5
-    evaluation_strategy: str = "steps"
     logging_first_step: bool = True
-    logging_steps: int = 10                      
-    eval_steps: int = 500
+    logging_steps: int = 20                      
+    save_steps: int = 2000
     output_dir: str = PROJECT_ROOT + '/model_save/dpo'
-    warmup_steps: int = 50
+    warmup_steps: int = 1000
     fp16: bool = True
     seed: int = 23333
     beta: float = 0.1
+
+
+
+# 以下为sft配置
+@dataclass
+class SFTconfig:
+    max_seq_len: int = 384 + 8                # 8 for eos token 
+
+    finetune_from_ckp_file = PROJECT_ROOT + '/model_save/chat_small_t5.7.pth'
+
+    model_config_file: str = PROJECT_ROOT + '/model_save/model_config.json'
+    tokenizer_dir: str = PROJECT_ROOT + '/model_save/tokenizer'
+    sft_train_file: str = PROJECT_ROOT + '/data/sft_train.json'
+
+    batch_size: int = 12
+    num_train_epochs: int = 4
+    save_steps: int = 5000
+    gradient_accumulation_steps: int = 4
+    learning_rate: float = 1e-5
+    logging_first_step: bool = True
+    logging_steps: int = 100                      
+    output_dir: str = PROJECT_ROOT + '/model_save/sft'
+    warmup_steps: int = 100
+    fp16: bool = True
+    seed: int = 23333
+
 
 # ===================================================================================
 # 以下为训练的配置
 @dataclass
 class TrainConfig:
     epochs: int = 8
-    batch_size_per_gpu: int = 32
+    batch_size_per_gpu: int = 16
     
     learn_rate: float = 0.0001                      # 最大 div_factor * learn_rate
     div_factor: int = 50
@@ -75,7 +102,7 @@ class TrainConfig:
 
     warmup_steps: int = 1024                        # 模型参数预热步数，预热样本数=warmup_steps * batch_size * gradient_accumulation_steps
 
-    tokenizer_file: str = PROJECT_ROOT + '/model_save/my_merged_tokenizer.json'
+    tokenizer_dir: str = PROJECT_ROOT + '/model_save/tokenizer'
     model_file: str = PROJECT_ROOT + '/model_save/chat_small_t5.{}.bin'
     model_config_file: str = PROJECT_ROOT + '/model_save/model_config.json'
     train_file: str = PROJECT_ROOT + '/data/my_train_dataset.parquet'
@@ -88,7 +115,11 @@ class TrainConfig:
 
     # 训练状态保存，中断后可以从此处继续训练
     train_state_dir: str = PROJECT_ROOT + '/model_save/train_latest_state'
+    output_dir: str = PROJECT_ROOT + '/model_save/pretrain'
 
+    logging_steps: int = 50
+    save_steps: int = 10000
+    
     # dataset_cache_dir: str = PROJECT_ROOT + '/data/.cache'
     # trainer_log_file: str = PROJECT_ROOT + '/logs/trainer.log'
 

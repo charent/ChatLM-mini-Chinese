@@ -17,6 +17,7 @@ def fixed_response(item: str) -> str:
     '''
     修复被截断的回答，从末尾往回找第一个结束标点
     '''
+    if len(item) <= 1: return item
     if item[-1] in END_PUN: return item
 
     n = len(item)
@@ -27,15 +28,20 @@ def fixed_response(item: str) -> str:
     return ''.join(item[0: i + 1])
 
 
-def fixed_en(stentance: str)->str:
-    '''恢复被删除的英文空格
+def fixed_space(sentance: str)->str:
+    '''单个空格删除，连续两个空格保留一个
     '''
-    n = len(stentance)
+    n = len(sentance)
     new_sentance = []
-    for i in range(0, n):
-        if stentance[i].isupper() and i - 1 >= 0 and stentance[i - 1].islower() :
-            new_sentance.append(' ')
-        new_sentance.append(stentance[i])
+    i = 0
+    while i < n:
+        word =  sentance[i]
+        if word != ' ':
+            new_sentance.append(word)
+        elif i + 1 < n and sentance[i + 1] == ' ':
+            new_sentance.append(word)
+            i += 1 # 两个空格保留一个，指针往下走一步
+        i += 1
 
     return ''.join(new_sentance)
 
@@ -58,10 +64,10 @@ def my_average(arry_list: list[float]) -> float:
     '''
     自定义均值计算，空数组返回0.0
     '''
-    
     if len(arry_list) == 0: return 0.0 
     
     return np.average(arry_list)
+
 
 def json_to_dataclass(json_file: str, class_name: str='Config') -> type:
     '''

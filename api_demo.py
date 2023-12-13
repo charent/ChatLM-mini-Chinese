@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from model.infer import ChatBot
 from config import InferConfig
+from utils.functions import fixed_space
 
 CONFIG = InferConfig()
 chat_bot = ChatBot(infer_config=CONFIG)
@@ -27,6 +28,14 @@ app = FastAPI()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
 
 #==============================================================
+
+"""
+post请求地址：http://127.0.0.1:8812/api/chat
+需要添加Authorization头，bodyjson格式，示例：
+{
+    "input_txt": "感冒了要怎么办"
+}
+"""
 
 async def api_key_auth(token: str = Depends(oauth2_scheme)) -> Union[None, bool]:
   """
@@ -65,7 +74,10 @@ async def chat(post_data: ChatInput, authority: str = Depends(api_key_auth)) -> 
                             headers={"WWW-Authenticate": "Bearer"},
                         )
     
-    outs = chat_bot.chat(input_txt)
+    outs = fixed_space(chat_bot.chat(input_txt))
+
+    if len(outs) == 0:
+       outs = "我是一个参数很少的AI模型🥺，知识库较少，无法直接回答您的问题，换个问题试试吧👋"
 
     return {'response': outs}
 

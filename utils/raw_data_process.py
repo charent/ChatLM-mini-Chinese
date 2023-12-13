@@ -15,7 +15,6 @@ from rich.console import Console
 from fastparquet import ParquetFile, write
 import pyarrow.parquet as pq
 from opencc import OpenCC
-from tokenizers import Tokenizer
 
 import sys
 sys.path.extend(['.','..'])
@@ -945,51 +944,31 @@ def parquet_to_text(sep='[SEP]', buffer_size: int=50000) -> None:
             f_write.writelines(cur_rows)
             cur_rows = []
 
-def text_dataset_to_ids_dataset(tokenizer_file: str, max_len: int=320, pad_token: str='[PAD]') -> None:
+def parquet_to_json() -> None:
     '''
-    将text字符全部转换为id， 从parquet文件加载list对象太慢了，这个函数没用
+    将parquet文件转换为json
     '''
+    parquet_file = PROJECT_ROOT + '/data/my_finetune_data_zh.parquet'
+    json_file = PROJECT_ROOT + '/data/sft_train.json'
 
-    text_files = [
-        PROJECT_ROOT + '/data/my_train_dataset.parquet',
-        PROJECT_ROOT + '/data/my_test_dataset.parquet',
-        PROJECT_ROOT + '/data/my_valid_dataset.parquet',
-    ]
+    if exists(json_file): 
+        assert delete_file(json_file)
 
-    save_ids_files = [
-        PROJECT_ROOT + '/data/my_train_ids_dataset.parquet',
-        PROJECT_ROOT + '/data/my_test_ids_dataset.parquet',
-        PROJECT_ROOT + '/data/my_valid_ids_dataset.parquet',
-    ]
+    source_pf = ParquetFile(parquet_file)
+    cur_rows = []
+    append = cur_rows.append
+   
+    for pf_chunk in progress.track(source_pf):
+        for rows in pf_chunk.iter_row_groups():
+            for prompt, response in zip(rows['prompt'], rows['response']):
+                if len(response) == 0 or len(prompt) == 0: continue
+                append({
+                    'prompt': str(prompt),
+                    'response': str(response),
+                })
 
-    # 询问删除旧的文件
-    for ids_file in save_ids_files:
-            if exists(ids_file): 
-                assert delete_file(ids_file)
-
-    tokenizer = Tokenizer.from_file(tokenizer_file)
-    tokenizer.enable_padding(length=max_len)
-    tokenizer.enable_truncation(max_length=max_len)
-    encode_batch = tokenizer.encode_batch
-
-    for i, txt_file in enumerate(text_files):
-        
-        log.info('processing file: {}'.format(txt_file))
-        parquet_data = ParquetFile(txt_file)
-
-        for pf_chunk in progress.track(parquet_data):
-                for rows in pf_chunk.iter_row_groups(): #一个pf_chunk大概1万-5万条数据，视写入parquet时的配置定
-
-                    # text to ids
-                    prompt = encode_batch(rows['prompt'])
-                    response = encode_batch(rows['response'])
-                    
-                    input_ids = [p.ids for p in prompt]
-                    target_ids = [r.ids for r in response]
-
-                    df = pd.DataFrame({'input_ids': input_ids, 'target_ids': target_ids})
-                    write_single_parquet_file(save_ids_files[i], df)
-
+    with open(json_file, 'w', encoding='utf-8') as f:
+        ujson.dump(cur_rows, f, indent=4, ensure_ascii=False)
 
 def dataset_length_cnt() -> None:
 
@@ -1162,18 +1141,15 @@ if __name__ == '__main__':
 
     # parquet_to_text()
 
-    # 从parquet文件加载list太慢了
-    # text_dataset_to_ids_dataset(tokenizer_file=PROJECT_ROOT + '/model_save/my_merged_tokenizer.json', max_len=320)
-
     # count_my_parquet_data(PROJECT_ROOT + '/data/my_dataset.parquet')
 
     # dataset_length_cnt()
 
     # process_belle_knowledge_enhanced_dataset_for_finetune(max_len=320, group_cnt=50000)
 
-    count_my_parquet_data(PROJECT_ROOT + '/data/')
+    # count_my_parquet_data(PROJECT_ROOT + '/data/')
 
-
+    parquet_to_json()
     # count_my_json_data()
 
 
