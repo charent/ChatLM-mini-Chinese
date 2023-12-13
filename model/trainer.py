@@ -10,8 +10,7 @@ import numpy as np
 from torch.utils.data import DataLoader
 import torch 
 from rich.progress import Progress, TextColumn, BarColumn, TimeElapsedColumn, TimeRemainingColumn
-from transformers import TrainingArguments, Trainer
-from tokenizers import Tokenizer
+from transformers import PreTrainedTokenizerFast
 from torch_optimizer import Adafactor
 
 # import accelerate
@@ -29,27 +28,8 @@ from utils.functions import (
     get_free_space_of_disk, 
     my_average,
     get_path_of_suffix_files,
+    fixed_space,
 )
-
-
-def transformers_trainer(config: TrainConfig) -> None:
-    ''''
-    
-    '''
-    trainer_args = TrainingArguments()
-
-    model = None 
-    train_data = None
-    dev_data = None
-    tokenizer = None 
-    trainer = Trainer(
-        model=model,
-        args=trainer_args,
-        train_dataset=train_data,
-        eval_dataset=dev_data,
-        tokenizer=tokenizer,
-        compute_metrics=None,
-    )
 
 class ChatTrainer:
     def __init__(self, train_config: TrainConfig, model_config: T5ModelConfig, ) -> None:
@@ -75,7 +55,7 @@ class ChatTrainer:
         进程退出时的操作，保存模型
         '''
         if self.accelerator and self.model:
-            ask = "are you sure to exit this process?  Yes (y) or No (n)"
+            ask = "you are pressed `ctrl+c`,  do you want to save checkpoint? Yes (y) or No (n)"
             self.accelerator.print(ask)
             ins = input()
             
@@ -84,12 +64,11 @@ class ChatTrainer:
                 suffix =  'exit_save_{}'.format(str(time.strftime('%Y%m%d%H%M%S', time.localtime())))
 
                 self.accelerator.wait_for_everyone()
-                self.save_model(suffix)
+                self.accelerator.save_state(output_dir=self.train_config.train_state_dir)
 
-                self.accelerator.print('model ckeck point has been saved!')
-                sys.exit(0)
-            else:
-                print('do nothing!')
+                self.accelerator.print('model ckeck point has been saved in {}'.format(self.train_config.train_state_dir))
+        
+            sys.exit(0)
         else:
             print('process not in trainingg, exit.')
             sys.exit(0)
@@ -152,6 +131,8 @@ class ChatTrainer:
         log = self.logger
         train_config = self.train_config
         model_config = self.model_config
+        save_steps = self.train_config.save_steps
+        logging_steps = self.train_config.logging_steps
 
         # 梯度累计的步数
         accumulation_steps = train_config.gradient_accumulation_steps
@@ -190,13 +171,13 @@ class ChatTrainer:
 
         train_dataset = MyDataset(
             parquet_file=train_config.train_file,
-            tokenizer_file=train_config.tokenizer_file,
+            tokenizer_dir=train_config.tokenizer_dir,
             keep_in_memory=keep_in_memory,
             max_seq_len=train_config.max_seq_len,
         )
         valid_dataset = MyDataset(
             parquet_file=train_config.validation_file,
-            tokenizer_file=train_config.tokenizer_file,
+            tokenizer_dir=train_config.tokenizer_dir,
             keep_in_memory=keep_in_memory,
             max_seq_len=train_config.max_seq_len,
         )
@@ -226,8 +207,8 @@ class ChatTrainer:
 
         # T5: All labels set to `-100` are ignored (masked), the loss is only computed for labels in `[0, ..., config.vocab_size]`
         tokenizer = train_dataset.tokenizer
-        decoder_start_token_id = tokenizer.token_to_id('[PAD]')
-        model_config.vocab_size = tokenizer.get_vocab_size()  # 往config添加vocab_size
+        decoder_start_token_id = tokenizer.pad_token_id
+        model_config.vocab_size = tokenizer.vocab_size  # 往config添加vocab_size
 
         model = TextToTextModel(config=model_config, decoder_start_token_id=decoder_start_token_id)
 
@@ -294,8 +275,6 @@ class ChatTrainer:
         best_epoch = 0
         epoch_loss_list = []
 
-        log_loss_interval_n = 50 # 每间隔 n 步保存一次loss到文件
-
         # 添加进度条，只在主进程更新
         if accelerator.is_main_process:
             progress = Progress(TextColumn("[progress.description]{task.description}"),
@@ -309,7 +288,7 @@ class ChatTrainer:
             
             epoch_progress = progress.add_task(description='epoch: ', show_info='', total=train_config.epochs)
             steps_progress = progress.add_task(description='steps: ', show_info='', \
-                                                total=np.ceil(steps_per_epoch / log_loss_interval_n))
+                                                total=np.ceil(steps_per_epoch / logging_steps))
             eval_progress = progress.add_task(description='evaluate: ', show_info='', total=eval_steps, visible=False)
 
             self.progress = progress
@@ -336,8 +315,7 @@ class ChatTrainer:
             for step, batch_data in enumerate(train_dataloader):
 
                 input_ids, input_mask = batch_data['input_ids'], batch_data['input_mask']
-                target_ids, target_mask = batch_data['target_ids'], batch_data['target_mask']
-
+                target_ids = batch_data['target_ids']
                 # for t5 model, all labels set to `-100` are ignored (masked)
                 target_ids[target_ids == decoder_start_token_id] = -100
 
@@ -345,7 +323,6 @@ class ChatTrainer:
                     input_ids=input_ids,
                     input_mask=input_mask,
                     labels=target_ids,
-                    decoder_attention_mask=target_mask,
                 )
 
                 loss = outputs.loss.mean() / accumulation_steps
@@ -361,8 +338,8 @@ class ChatTrainer:
                     lr_scheduler.step()
                     optimizer.zero_grad()
                 
-                # 每隔1万步保存一次模型
-                if (step + 1) % 10000 == 0 or step == steps_per_epoch :
+                # 每隔save_steps步保存一次模型
+                if (step + 1) % save_steps == 0 or step == steps_per_epoch:
                     self.save_model('epoch_{}_latest'.format(epoch))
                     accelerator.save_state(output_dir=train_config.train_state_dir)
                 
@@ -370,7 +347,7 @@ class ChatTrainer:
                 # 每n步更新一次，避免频繁的cpu-gpu数据复制
                 # 参考：https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html#avoid-unnecessary-cpu-gpu-synchronization
                 
-                if step % log_loss_interval_n == 0 or step == steps_per_epoch:
+                if step % logging_steps == 0 or step == steps_per_epoch:
                     
                     loss_cpu = loss.detach().item() * accumulation_steps
                     epoch_loss_list.append(loss_cpu)
@@ -425,7 +402,7 @@ class ChatTrainer:
 
     def evaluate(self, 
                 model: TextToTextModel, 
-                tokenizer: Tokenizer,
+                tokenizer: PreTrainedTokenizerFast,
                 valid_dataloader: DataLoader, 
                 accelerator: Accelerator,
                 eval_steps: int,
@@ -435,7 +412,7 @@ class ChatTrainer:
         评估，返回平均的bleu分数
         '''
         max_seq_len = self.train_config.max_seq_len
-        decode_batch = tokenizer.decode_batch
+        batch_decode = tokenizer.batch_decode
         bleu4_scores = []
 
         if accelerator.is_main_process:
@@ -462,13 +439,13 @@ class ChatTrainer:
                 outputs = accelerator.gather_for_metrics(outputs).detach().cpu().numpy()
                 target_ids = accelerator.gather_for_metrics(target_ids).detach().cpu().numpy()
         
-                outputs = decode_batch(outputs,  skip_special_tokens=True)
-                target_ids = decode_batch(target_ids, skip_special_tokens=True )
+                outputs = batch_decode(outputs, skip_special_tokens=True, clean_up_tokenization_spaces=False)
+                target_ids = batch_decode(target_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)
 
 
                 # 删除decode出来字符间的空格
-                outputs = [sentance.replace(' ', '') for sentance in outputs]
-                target_ids = [sentance.replace(' ', '') for sentance in target_ids]
+                outputs = [fixed_space(sentance) for sentance in outputs]
+                target_ids = [fixed_space(sentance) for sentance in target_ids]
 
                 # print(outputs, target_ids)
 
@@ -496,7 +473,7 @@ class ChatTrainer:
 
         test_dataset = MyDataset(
             parquet_file=train_config.train_file,
-            tokenizer_file=train_config.tokenizer_file,
+            tokenizer_dir=train_config.tokenizer_dir,
             keep_in_memory=False if self.is_win_platform else True,
             max_seq_len=train_config.max_seq_len,
         )
@@ -528,8 +505,8 @@ class ChatTrainer:
 
         # T5: All labels set to `-100` are ignored (masked), the loss is only computed for labels in `[0, ..., config.vocab_size]`
         tokenizer = test_dataset.tokenizer
-        decoder_start_token_id = tokenizer.token_to_id('[PAD]')
-        model_config.vocab_size = tokenizer.get_vocab_size()  # 往config添加vocab_size
+        decoder_start_token_id = tokenizer.pad_token_id
+        model_config.vocab_size = tokenizer.vocab_size  # 往config添加vocab_size
 
         model = TextToTextModel(config=model_config, decoder_start_token_id=decoder_start_token_id)
         model.load_state_dict(torch.load(train_config.model_file.format(best_epoch)))
@@ -543,7 +520,7 @@ class ChatTrainer:
 
         bleu4 = 0.0
         bleu4_scores = []
-        decode_batch = tokenizer.decode_batch
+        batch_decode = tokenizer.batch_decode
         max_seq_len = self.train_config.max_seq_len
         model.eval()
 
@@ -582,12 +559,12 @@ class ChatTrainer:
                 outputs = accelerator.gather_for_metrics(outputs).cpu().numpy()
                 target_ids = accelerator.gather_for_metrics(target_ids).cpu().numpy()
                 
-                outputs = decode_batch(outputs,  skip_special_tokens=True)
-                target_ids = decode_batch(target_ids, skip_special_tokens=True )
+                outputs = batch_decode(outputs, skip_special_tokens=True, clean_up_tokenization_spaces=False)
+                target_ids = batch_decode(target_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)
 
                 # 删除decode出来字符间的空格
-                outputs = [sentance.replace(' ', '') for sentance in outputs]
-                target_ids = [sentance.replace(' ', '') for sentance in target_ids]
+                outputs = [fixed_space(sentance) for sentance in outputs]
+                target_ids = [fixed_space(sentance) for sentance in target_ids]
 
                 # print('outputs: {}'.format(outputs[0:5]))
                 # print('target_ids: {}'.format(target_ids[0:5]))

@@ -1,6 +1,8 @@
 # coding=utf-8
 from typing import Dict, Optional
+import time
 
+import pandas as pd
 import torch
 from datasets import Dataset, load_dataset
 from transformers import PreTrainedTokenizerFast, TrainingArguments
@@ -11,11 +13,9 @@ from peft import LoraConfig, TaskType, PeftModel
 from config import DpoConfig
 from model.chat_model import TextToTextModel
 from utils.functions import json_to_dataclass
-from utils.logger import Logger
 
-log = Logger('train_dpo', save2file=True)
 
-def get_dataset(split: str, file: str, cache_dir: str = None) -> Dataset:
+def get_dataset(split: str, file: str, cache_dir: str = '.cache') -> Dataset:
     """Load the Anthropic Helpful-Harmless dataset from Hugging Face and convert it to the necessary format.
 
     The dataset is converted to a dictionary with the following structure:
@@ -24,47 +24,34 @@ def get_dataset(split: str, file: str, cache_dir: str = None) -> Dataset:
         'chosen': List[str],
         'rejected': List[str],
     }
-
-    Prompts should be structured as follows:
-      \n\nHuman: <prompt>\n\nAssistant:
-    Multiple turns are allowed, but the prompt should always start with \n\nHuman: and end with \n\nAssistant:.
     """
     dataset = load_dataset('json', data_files=file,  split=split, cache_dir=cache_dir)
 
     def split_prompt_and_responses(sample: dict) -> Dict[str, str]:
         return {
-            "prompt": sample["prompt"],
-            
             # add an eos token for signal that end of sentance, using in generate.
-            "chosen": sample["chosen"] + '[EOS]',
-            "rejected": sample["reject"]+ '[EOS]',
+            "prompt": f"{sample['prompt']}[EOS]",
+            "chosen": f"{sample['chosen']}[EOS]",
+            "rejected": f"{sample['rejected']}[EOS]",
         }
 
-    return dataset.map(split_prompt_and_responses)
+    return dataset.map(split_prompt_and_responses).shuffle(2333)
 
 
 def train_dpo(config: DpoConfig, peft_config: LoraConfig=None) -> None:
 
-    # 0. 加载模型配置文件
+    # 1. 加载模型配置文件
     model_config_class = json_to_dataclass(config.model_config_file, 'ModelConfig')
     model_config = model_config_class()
 
-    # 1. 加载tokenizer
-    tokenizer_obj = Tokenizer.from_file(config.tokenizer_file)
-    tokenizer = PreTrainedTokenizerFast(tokenizer_object=tokenizer_obj)
-    tokenizer.pad_token = '[PAD]'
-    tokenizer.pad_token_id = tokenizer_obj.token_to_id('[PAD]')
-    tokenizer.unk_token = '[UNK]'
-    tokenizer.unk_token_id = tokenizer_obj.token_to_id('[UNK]')
-    tokenizer.eos_token = '[EOS]'
-    tokenizer.eos_token_id = tokenizer_obj.token_to_id('[EOS]')
+    # 2. 加载tokenizer
+    tokenizer = PreTrainedTokenizerFast.from_pretrained(config.tokenizer_dir)
     
-    # 2. 加载预训练模型
+    # 3. 加载预训练模型
     model = TextToTextModel(config=model_config, decoder_start_token_id=tokenizer.pad_token_id)
     model.load_state_dict(torch.load(config.sft_model_file))
     model_train = model.model # un_pkg model
-    # tokenizer.save_pretrained('./model_save/chat_lm_small_tokenizer')
-
+ 
     # float32 model param size
     print('model parameters size: {:.3f} M.'.format(sum([p.numel() for p in model.parameters()]) * 4 / 1024 /1024))
     
@@ -72,26 +59,28 @@ def train_dpo(config: DpoConfig, peft_config: LoraConfig=None) -> None:
     model_ref.load_state_dict(torch.load(config.sft_model_file))
     model_ref = model_ref.model
     
-    # 3. 加载训练数据集
+    # 4. 加载训练数据集
     train_dataset = get_dataset("train", file=config.dpo_train_file)
 
-    # 4. 加载评估数据集
-    eval_dataset = get_dataset("train", file=config.dpo_eval_file)
+    # 5. 加载评估数据集
+    # eval_dataset = get_dataset("train", file=config.dpo_eval_file)
+    eval_dataset = None
 
-    # 5. 初始化训练参数
+    # 6. 初始化训练参数
     training_args = TrainingArguments(
         per_device_train_batch_size=config.per_device_train_batch_size,
-        max_steps=config.max_steps,
+        num_train_epochs=config.num_train_epochs,
+        auto_find_batch_size=True,
         remove_unused_columns=False,
         gradient_accumulation_steps=config.gradient_accumulation_steps,
         learning_rate=config.learning_rate,
-        evaluation_strategy="steps",
         logging_first_step=True,
-        logging_steps=config.logging_steps,  # match results in blog post
-        eval_steps=config.eval_steps,
-        save_steps=config.eval_steps,
+        logging_steps=config.logging_steps, 
+        save_steps=config.save_steps,
         output_dir=config.output_dir,
         optim="adafactor",
+        report_to="tensorboard",
+        log_level='info',
         warmup_steps=config.warmup_steps,
         bf16=False,
         fp16=config.fp16,
@@ -99,7 +88,7 @@ def train_dpo(config: DpoConfig, peft_config: LoraConfig=None) -> None:
         logging_dir=config.log_dir,
     )
 
-    # 6. 初始化 DPO trainer
+    # 7. 初始化 DPO trainer
     dpo_trainer = DPOTrainer(
         model_train,
         model_ref,
@@ -116,14 +105,17 @@ def train_dpo(config: DpoConfig, peft_config: LoraConfig=None) -> None:
         is_encoder_decoder=True,
     )
 
-    log.info('dpo train agrs: \n{}\n'.format(training_args), save_to_file=True)
-    log.info('dpo train peft config: \n{}\n'.format(peft_config), save_to_file=True)
+    # 8. 训练
+    dpo_trainer.train(
+        resume_from_checkpoint=True
+    )
 
-    # 7. 训练
-    dpo_trainer.train()
-
-    # 8. 保存模型/lora
-    suffixe = '/lora/' if peft_config is not None else ''
+    # 9. save log
+    loss_log = pd.DataFrame(dpo_trainer.state.log_history)
+    loss_log.to_csv(f"./logs/dpo_train_log_{time.strftime('%Y%m%d-%H%M')}.csv")
+    
+    # 10. 保存模型/lora
+    suffixe = '/lora/' if peft_config is not None else '/dpo'
     model_save_dir = '/'.join(config.sft_model_file.split('/')[0: -1]) + suffixe
 
     dpo_trainer.save_model(model_save_dir)
@@ -135,8 +127,9 @@ def train_dpo(config: DpoConfig, peft_config: LoraConfig=None) -> None:
     if peft_config is not None:
         sate_dict_dir = config.sft_model_file + '.dpo.lora.bin'
 
-    torch.save(model.state_dict(), sate_dict_dir)
-    print('save sate dict to: {}'.format(sate_dict_dir))
+        torch.save(model.state_dict(), sate_dict_dir)
+        print('save sate dict to: {}'.format(sate_dict_dir))
+
 
 def merge_lora_weight_into_model(config: DpoConfig, peft_config: LoraConfig) -> None:
 
@@ -145,26 +138,33 @@ def merge_lora_weight_into_model(config: DpoConfig, peft_config: LoraConfig) -> 
     model_config = model_config_class()
 
     # 1. 加载tokenizer
-    tokenizer_obj = Tokenizer.from_file(config.tokenizer_file)
+    tokenizer_obj = Tokenizer.from_pretrained(config.tokenizer_dir)
     
     # 2. 加载预训练模型
     model = TextToTextModel(config=model_config, decoder_start_token_id=tokenizer_obj.token_to_id('[PAD]'))
     model.load_state_dict(torch.load(config.sft_model_file))
     model_sft = model.model # un package model
 
-    adapter_save_dir = '/'.join(config.sft_model_file.split('/')[0: -1])
-    # peft_model = PeftModel.from_pretrained(
-    #     model=model_sft,
-    #     model_id=model_save_dir,
-    #     config=peft_config,
-    #     adapter_name='adapter',
-    # )
+    # 注意这个路径要和上面的model_save_dir一致
+    # train_dpo函数代码
+        # 9. 保存模型/lora
+        # suffixe = '/lora/' if peft_config is not None else '/dpo'
+        # model_save_dir = '/'.join(config.sft_model_file.split('/')[0: -1]) + suffixe
+
+    adapter_save_dir = '/'.join(config.sft_model_file.split('/')[0: -1]) + '/lora'
     
-    peft_model = PeftModel(
+    peft_model = PeftModel.from_pretrained(
         model=model_sft,
-        peft_config=peft_config,
+        model_id=adapter_save_dir,
+        config=peft_config,
         adapter_name='adapter',
     )
+    
+    # peft_model = PeftModel(
+    #     model=model_sft,
+    #     peft_config=peft_config,
+    #     adapter_name='adapter',
+    # )
 
     # 3. load adapter
     
@@ -197,7 +197,7 @@ if __name__ == "__main__":
     dpo_config = DpoConfig()
 
     # 1. train
-    train_dpo(dpo_config, None)
+    train_dpo(dpo_config, peft_config=None)
 
     # 2. merge lora adapter into model
     # merge_lora_weight_into_model(dpo_config, peft_config)

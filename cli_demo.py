@@ -8,14 +8,14 @@ from rich.live import Live
 
 from model.infer import ChatBot
 from config import InferConfig
-from utils.functions import fixed_response, fixed_en
+from utils.functions import fixed_space
 
 infer_config = InferConfig()
 chat_bot = ChatBot(infer_config=infer_config)
 
 clear_cmd = 'cls' if platform.system().lower() == 'windows' else 'clear'
 
-welcome_txt = '欢迎使用ChatBot，输入`exit`或者`quit` 退出，输入`cls`或者`clear`清屏。\n'
+welcome_txt = '欢迎使用ChatBot，输入`exit`退出，输入`cls`清屏。\n'
 print(welcome_txt)
 
 def build_prompt(history: list[list[str]]) -> str:
@@ -54,11 +54,11 @@ def chat(stream: bool=True) -> None:
             continue
         
         # 退出
-        if input_txt.lower() in ('exit', 'quite'):
+        if input_txt.lower() == 'exit':
             break
         
         # 清屏
-        if input_txt.lower() in ('cls', 'clear'):
+        if input_txt.lower() == 'cls':
             history = []
             turn_count = 0
             os.system(clear_cmd)
@@ -80,20 +80,23 @@ def chat(stream: bool=True) -> None:
             continue
 
         history.append([input_txt, ''])
-        stream_txt = ''
+        stream_txt = []
         streamer = chat_bot.stream_chat(input_txt)
         rich_text = Text()
-        print("\r\033[0;32;40mChatBot：\033[0m\n", end='')
-        with Live(rich_text, refresh_per_second=10) as live: 
-            for i, word in enumerate(streamer):
-                word = word.replace(' ', '')
-                stream_txt += word
-                rich_text.append(word)
 
-        if len(stream_txt) != 0:
-            stream_txt = fixed_en(fixed_response(stream_txt))
-        else:
+        print("\r\033[0;32;40mChatBot：\033[0m\n", end='')
+
+        with Live(rich_text, refresh_per_second=15) as live: 
+            for i, word in enumerate(streamer):
+                word = fixed_space(word)   # 删除词之间的空格
+                rich_text.append(word)
+                stream_txt.append(word)
+
+        stream_txt = ''.join(stream_txt)
+
+        if len(stream_txt) == 0:
             stream_txt = "我是一个参数很少的AI模型🥺，知识库较少，无法直接回答您的问题，换个问题试试吧👋"
+
         history[turn_count][1] = stream_txt
         
         os.system(clear_cmd)
@@ -101,4 +104,4 @@ def chat(stream: bool=True) -> None:
         turn_count += 1
 
 if __name__ == '__main__':
-    chat(stream=False)
+    chat(stream=True)

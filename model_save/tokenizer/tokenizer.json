@@ -78,6 +78,7 @@
     "continuing_subword_prefix": null,
     "end_of_word_suffix": null,
     "fuse_unk": false,
+    "byte_fallback": false,
     "vocab": {
       "[PAD]": 0,
       "[EOS]": 1,
@@ -28918,7 +28919,7 @@
       "莆": 28836,
       "許": 28837,
       "嘘": 28838,
-      "ね": 28839,
+      " ": 28839,
       "囟": 28840,
       "婶": 28841,
       "纶": 28842,

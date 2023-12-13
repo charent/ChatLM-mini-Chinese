@@ -12,6 +12,7 @@
 
 # python cache
 *.pyc
+*.cache
 
 logs/*
 
@@ -21,6 +22,6 @@ data/*
 !/data/my_valid_dataset_1k.parquet
 
 model_save/*
-!model_save/my_merged_tokenizer.json
+!model_save/tokenizer
 
 wandb/*
