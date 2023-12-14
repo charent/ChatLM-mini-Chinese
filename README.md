@@ -2,8 +2,10 @@
 
 # 一、介绍
 *Read this in [English](README.en.md).*
-现在的大语言模型的参数往往较大，平民消费级电脑单纯做推理都比较慢，更别说想自己从头开始训练一个模型了。 
-本项目的目标是梳理整套生成式语言模型的训练流程，包括数据清洗、tokenizer训练、模型预训练、SFT指令微调、DPO偏好优化等。Chat-LM-small的模型参数只有0.7B，可以在最低16GB显存的机器训练（`fp16`或者` bf16`），推理最少只需要1GB显存（`bf16`，如果做`int8`、`int4`量化，还可以继续压缩）。 
+现在的大语言模型的参数往往较大，消费级电脑单纯做推理都比较慢，更别说想自己从头开始训练一个模型了。 本项目的目标是梳理整套生成式语言模型的训练流程，包括数据清洗、tokenizer训练、模型预训练、SFT指令微调、RLHF优化等。 
+
+Chat-LM-small为中文对话小模型，模型参数只有210M（0.2B），可以在最低4GB显存的机器进行预训练（`batch_size=1`，`fp16`或者` bf16`），`float16`加载、推理最少只需要512MB显存。 
+
 
 - 公开所有预训练、SFT指令微调、DPO偏好优化数据集。
 - 使用`Huggingface`NLP框架，包括`transformers`、`accelerate`、`trl`、`peft`等。
@@ -11,8 +13,8 @@
 - 预训练：整合为端到端的`text-to-text`预训练，非`mask`掩码预测预训练。
     - 开源所有数据清洗、数据集构造、数据集加载优化等流程；
     - tokenizer多进程词频统计，支持`sentencepiece`、`huggingface tokenizers`的tokenizer训练；
-    - 预训练支持断点，可从断点处继续训练;
-    - 大数据集（GB级别）流式加载、支持缓冲区数据打乱，不利用内存、硬盘作为缓存，有效减少内存、磁盘占用。配置`batch_size=16, max_len=320`下，最低支持在16GB内存+16GB显存的机器上进行预训练；
+    - 预训练支持任意位置断点，可从断点处继续训练;
+    - 大数据集（GB级别）流式加载、支持缓冲区数据打乱，不利用内存、硬盘作为缓存，有效减少内存、磁盘占用。配置`batch_size=1, max_len=320`下，最低支持在16GB内存+4GB显存的机器上进行预训练；
     - 训练日志记录。
 - SFT微调：开源SFT数据集及数据处理过程。
     - 自实现`trainer`支持prompt指令微调， 支持任意断点继续训练；
@@ -22,13 +24,31 @@
     - 支持使用`peft lora`进行偏好优化；
     - 支持模型合并，可将`Lora adapter`合并到原始模型中。
 
-<details> 
-<summary> 最近更新 </summary>
-  - [2023-12-14] 更新Sft、dpo模型权重文件，更新预训练、SFT及DPO脚本。更新`tokenizer`为`PreTrainedTokenizerFast`， 重构`dataset`代码，支持动态最大长度，每个批次的最大长度由该批次的最长文本决定，节省显存。<br/>
-  - [2023-12-04] 更新模型效果展示，更新readme文档。<br/>
-  - [2023-11-26] 更新dpo训练过程。<br/>
-  - [2023-11-18] 项目开源。<br/>
-</details> 
+🟢**最近更新**
+<details close> 
+<summary>  <b>2023-12-14</b> </summary>
+- 更新SFT、DPO后的模型权重文件。 <br/>
+- 更新预训练、SFT及DPO脚本。 <br/>
+- 更新`tokenizer`为`PreTrainedTokenizerFast`。 <br/>
+- 重构`dataset`代码，支持动态最大长度，每个批次的最大长度由该批次的最长文本决定，节省显存。 <br/>
+</details>
+
+<details close> 
+<summary> <b>2023-12-04</b> </summary>
+- 更新`generate`参数及模型效果展示。<br/>
+- 更新readme文档。<br/>
+</details>
+
+<details close> 
+<summary> <b>2023-11-28</b> </summary>
+- 更新dpo训练代码及模型权重。<br/>
+</details>
+
+<details close> 
+<summary> <b>2023-10-19</b> </summary>
+- 项目开源， 开放模型权重供下载。 <br/>
+</details>
+
 
 # 二、Chat-LM-small模型训练过程
 ## 2.1 预训练数据集
@@ -42,7 +62,7 @@
 6. belle开源的指令训练数据，介绍：[BELLE](https://github.com/LianjiaTech/BELLE)，下载：[BelleGroup](https://huggingface.co/BelleGroup)，仅选取`Belle_open_source_1M`、`train_2M_CN`、及`train_3.5M_CN`中部分回答较短、不含复杂表格结构、翻译任务（没做英文词表）的数据，共370万行，清洗后剩余338万行。
 7. 维基百科（Wikipedia）词条数据，将词条拼凑为提示语，百科的前`N`个词为回答，使用`202309`的百科数据，清洗后剩余119万的词条提示语和回答。Wiki下载：[zhwiki](https://dumps.wikimedia.org/zhwiki/)，将下载的bz2文件转换为wiki.txt参考：[WikiExtractor](https://github.com/apertium/WikiExtractor)。 
 
-数据集总数量1023万：Text to Text预训练集：930万，评估集：2.5万（因为解码较慢，所以没有把评估集设置太大）。~~测试集：90万~~ 
+数据集总数量1023万：Text to Text预训练集：930万，评估集：2.5万（因为解码较慢，所以没有把评估集设置太大）。~~测试集：90万。~~ 
 SFT微调和DPO优化数据集见下文。
 
 ## 2.2 模型
@@ -50,9 +70,9 @@ T5模型（Text-To-Text Transfer Transformer），详情见论文: [Exploring th
 
 模型源码来自huggingface，见：[T5ForConditionalGeneration](https://github.com/huggingface/transformers/blob/main/src/transformers/models/t5/modeling_t5.py#L1557)。
 
-模型配置见`config.py`下的`T5ModelConfig`，官方的`T5-base`：`encoder layer`和`decoder layer `均为为12层，本项目这两个参数修改为10层。 
+模型配置见[model_config.json](https://huggingface.co/charent/Chat-LM-small/blob/main/model_config.json)，官方的`T5-base`：`encoder layer`和`decoder layer `均为为12层，本项目这两个参数修改为10层。 
 
-模型参数：0.7B。词表大小：29298，仅包含中文和少量英文。
+模型参数：210M。词表大小：29298，仅包含中文和少量英文。
 
 ## 2.3 训练过程
 硬件：
@@ -67,14 +87,17 @@ CPU: Intel(R) i5-13600k @ 5.1GHz
 内存：32 GB
 显卡：NVIDIA GeForce RTX 4060 Ti 16GB * 1
 ```
-1. **text to text 预训练**：学习率为`1e-4`到`5e-3`的动态学习率，预训练时间为8天。训练损失：
+1. **text to text 预训练**：学习率为`1e-4`到`5e-3`的动态学习率，预训练时间为8天。训练损失： 
+
 ![traing loss](img/train_loss.png) 
 
-2. **prompt监督微调（SFT）**：使用`belle`指令训练数据集（指令和回答长度都在512以下），学习率为`1e-7`到`5e-5`的动态学习率，微调时间2天。微调损失：
+1. **prompt监督微调（SFT）**：使用`belle`指令训练数据集（指令和回答长度都在512以下），学习率为`1e-7`到`5e-5`的动态学习率，微调时间2天。微调损失： 
+   
 ![finetune loss](img/sft_loss.png) 
 
-3. **dpo直接偏好优化**：数据集[alpaca-gpt4-data-zh](https://huggingface.co/datasets/c-s-ale/alpaca-gpt4-data-zh)作为`chosen`文本，步骤`2`中SFT模型对数据集中的prompt做批量`generate`，得到`rejected`文本，耗时1天，dpo全量偏好优化，学习率`le-5`，半精度`fp16`,共`2`个`epoch`，耗时3h。dpo损失：
-![dpo loss](img/dpo_loss.png)
+1. **dpo直接偏好优化**：数据集[alpaca-gpt4-data-zh](https://huggingface.co/datasets/c-s-ale/alpaca-gpt4-data-zh)作为`chosen`文本，步骤`2`中SFT模型对数据集中的prompt做批量`generate`，得到`rejected`文本，耗时1天，dpo全量偏好优化，学习率`le-5`，半精度`fp16`,共`2`个`epoch`，耗时3h。dpo损失： 
+ 
+![dpo loss](img/dpo_loss.png) 
 
 ## 2.4 对话效果展示
 ### 2.4.1 stream chat
@@ -84,7 +107,7 @@ CPU: Intel(R) i5-13600k @ 5.1GHz
 ### 2.4.3 对话展示
 ![](./img/show1.png)
 
-存在问题：预训练数据集只有900多万，模型参数也仅0.7B，不能涵盖所有方面，会有答非所问、废话生成器的情况。
+存在问题：预训练数据集只有900多万，模型参数也仅210M，不能涵盖所有方面，会有答非所问、废话生成器的情况。
 
 # 三、使用说明
 克隆项目：
@@ -113,14 +136,18 @@ conda安装：
 conda install --yes --file ./requirements.txt
 ```
 
-## 3.2 下载预训练模型及词表
-从`Hugging Face Hub`下载模型及文件，需要先安装[Git LFS](https://docs.github.com/zh/repositories/working-with-files/managing-large-files/installing-git-large-file-storage)，然后运行:
+## 3.2 下载预训练模型及模型配置文件
+
+从`Hugging Face Hub`下载模型权重及配置文件，需要先安装[Git LFS](https://docs.github.com/zh/repositories/working-with-files/managing-large-files/installing-git-large-file-storage)，然后运行: 
+
 ```bash 
 git clone https://huggingface.co/charent/Chat-LM-small
 ```
+
 也可以直接从`Hugging Face Hub`仓库[Chat-LM-small](https://huggingface.co/charent/Chat-LM-small)手工下载，将下载的文件移动到`model_save`目录下即可。
     
 ## 3.3 Text to Text 预训练 
+
 1. 预训练数据集示例
 ```json
 {
@@ -231,12 +258,13 @@ python dpo_train.py
 Chat-LM-small
 ├─model_save
 │  ├─chat_lm_t5.pre7.sft9w.dpo6k.bin
+|  ├─model_config.json
 |  └─tokenizer
 |     ├─special_tokens_map.json
 |     ├─tokenizer.json
 |     └─tokenizer_config.json
 ```
-仅`chat_lm_t5.pre7.sft9w.dpo6k.bin`文件需要手工下载，`tokenizer`文件夹下的文件在克隆Git仓库的时候自带。
+文件`chat_lm_t5.pre7.sft9w.dpo6k.bin`和`model_config.json`需要手工下载，`tokenizer`文件夹下的文件在克隆Git仓库的时候自带。
 
 1. 控制台运行：
 ```bash
@@ -265,7 +293,7 @@ curl --location '127.0.0.1:8812/api/chat' \
 ```conf
 @misc{Charent2023,
     author={Charent Chen},
-    title={A small chinese chatbot with 0.7B parameters base on T5 model},
+    title={A small chinese chatbot with 210M parameters base on T5 model},
     year={2023},
     publisher = {GitHub},
     journal = {GitHub repository},

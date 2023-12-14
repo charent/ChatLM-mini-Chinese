@@ -114,10 +114,11 @@ def pre_train(config: TrainConfig) -> None:
         # resume_from_checkpoint=True
     )
 
+    #step 9: save log
     loss_log = pd.DataFrame(trainer.state.log_history)
     loss_log.to_csv(f"./logs/pre_train_log_{time.strftime('%Y%m%d-%H%M')}.csv")
 
-    # Step 9: Save the model
+    # Step 10: Save the model
     trainer.save_model(config.output_dir)
 
 
