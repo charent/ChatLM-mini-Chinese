@@ -4,7 +4,7 @@ datasets==2.15.0
 fastapi==0.105.0
 fastparquet==2023.10.1
 fire==0.5.0
-jieba_fast==0.53
+jieba==0.42.1
 matplotlib==3.8.2
 nltk==3.8.1
 numpy==1.26.2

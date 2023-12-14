@@ -7,7 +7,7 @@ from tokenizers.models import BPE
 from tokenizers.trainers import BpeTrainer
 from rich import progress
 import ujson
-from jieba_fast import lcut
+from jieba import lcut
 
 from multiprocessing import RLock, Pool
 from multiprocessing.managers import BaseManager
@@ -311,7 +311,7 @@ def merge_cropus_dict(word_min_freq: int=2500, char_min_freq: int=1500) -> None:
         ujson.dump(merged_dict, f,  indent=4, ensure_ascii=False)
 
 
-def change_cropus_dict_to_tokenize() -> None:
+def change_cropus_dict_to_tokenizer() -> None:
     '''
     将结巴分词对所有数据集进行分词后统计词频的数据转换未huggingface的tokenizer
     为什么这样做？
@@ -386,12 +386,19 @@ if __name__ == '__main__':
     # train_my_huggingface_wiki_tokenizer()
 
     # train_my_BPE_tokenizer()
-    # get_corpus_dict()
+
+    # step 1: 统计预训练语料的词频、字频
+    get_corpus_dict()
     # get_cropus_dict_multi_process()
 
-    # merge_cropus_dict() 
-    # change_cropus_dict_to_tokenize()   
-    # trained_tokenizer_to_PreTrainedTokenizerFast()
+    # step 2: 将词频、字频大于N的字、词添加到词典中
+    merge_cropus_dict(word_min_freq=2500, char_min_freq=1500) 
+
+    # step 3: 将2中得到的词典转换为这个tokenizer：from tokenizers import Tokenizer
+    change_cropus_dict_to_tokenizer()
+
+    # step 4: 将 Tokenizer 转换为 PreTrainedTokenizerFast
+    trained_tokenizer_to_PreTrainedTokenizerFast()
 
     pass
 
