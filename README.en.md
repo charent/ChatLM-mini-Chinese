@@ -3,8 +3,9 @@
 # 1. Introduction
 *阅读中文文档 [中文](README.md).*
 
-The parameters of today's large language models tend to be large, and consumer-level computers are relatively slow for simple inference, let alone training a model from scratch.
-The goal of this project is to sort out the entire training process of a generative language model, including data cleaning, tokenizer training, model pre-training, SFT instruction fine-tuning, DPO preference optimization, etc. The model parameters of Chat-LM-small are only 0.7B. It can be trained on a machine with a minimum of 16GB of GPU memory (`fp16` or `bf16`). Inference only requires at least 1GB of GPU memory (`bf16`, if you use `int8`, `int4` Quantization, you can also continue to compress).
+The parameters of today's large language models tend to be large, and consumer-level computers are relatively slow for simple inference, let alone training a model from scratch.The goal of this project is to sort out the entire training process of a generative language model, including data cleaning, tokenizer training, model pre-training, SFT instruction fine-tuning, RLHF optimization, etc. 
+
+Chat-LM-small is a small Chinese chat model with only 210M (0.2B) parameters. It can be pre-trained on  machine with a minimum of 4GB of GPU memory (`batch_size=1`, `fp16` or `bf16`), `float16` loading and inference only require a minimum of 512MB of GPU memory.
 
 - Make public all pre-training, SFT instruction fine-tuning, and DPO preference optimization datasets.
 - Use the `Huggingface` NLP framework, including `transformers`, `accelerate`, `trl`, `peft`, etc.
@@ -12,8 +13,8 @@ The goal of this project is to sort out the entire training process of a generat
 - Pre-training: Integrated into end-to-end `text-to-text` pre-training, non-`mask` mask prediction pre-training.
      - Open source all data cleaning, dataset construction, dataset loading optimization and other processes;
      - tokenizer multi-process word frequency statistics, supports tokenizer training of `sentencepiece` and `huggingface tokenizers`;
-     - Pre-training supports breakpoints, and training can be continued from the breakpoint;
-     - Streaming loading of large datasets (GB level), supporting buffer data shuffling, does not use memory or hard disk as cache, effectively reducing memory and disk usage. configuring `batch_size=16, max_len=320`, supporting pre-training on a machine with at least 16GB memory + 16GB GPU memory;
+     - Pre-training supports checkpoint at any step, and training can be continued from the breakpoint;
+     - Streaming loading of large datasets (GB level), supporting buffer data shuffling, does not use memory or hard disk as cache, effectively reducing memory and disk usage. configuring `batch_size=1, max_len=320`, supporting pre-training on a machine with at least 16GB RAM + 4GB GPU memory;
      - Training log record.
 - SFT fine-tuning: open source SFT dataset and data processing process.
      - The self-implemented `trainer` supports prompt command fine-tuning and supports any breakpoint to continue training;
@@ -23,12 +24,29 @@ The goal of this project is to sort out the entire training process of a generat
      - Support using `peft lora` for preference optimization;
      - Supports model merging, `Lora adapter` can be merged into the original model.
 
-<details>
-<summary> Recent updates </summary>
-   - [2023-12-14] Update Sft and dpo model weight files, update pre-training, SFT and DPO scripts. Update `tokenizer` to `PreTrainedTokenizerFast`, refactor the `dataset` code to support dynamic maximum length. The maximum length of each batch is determined by the longest text of the batch, saving GPU memory. <br/>
-   - [2023-12-04] Update the model effect display and update the readme document. <br/>
-   - [2023-11-26] Updated dpo training process. <br/>
-   - [2023-11-18] The project is open source. <br/>
+🟢**Latest Update**
+<details close>
+<summary> <b>2023-12-14</b> </summary>
+- Updated model weight files after SFT and DPO. <br/>
+- Updated pre-training, SFT and DPO scripts. <br/>
+- update `tokenizer` to `PreTrainedTokenizerFast`. <br/>
+- Refactor the `dataset` code to support dynamic maximum length. The maximum length of each batch is determined by the longest text in the batch, saving GPU memory. <br/>
+</details>
+
+<details close>
+<summary> <b>2023-12-04</b> </summary>
+- Updated `generate` parameters and model effect display. <br/>
+- Updated readme documentation. <br/>
+</details>
+
+<details close>
+<summary> <b>2023-11-28</b> </summary>
+- Updated dpo training code and model weights. <br/>
+</details>
+
+<details close>
+<summary> <b>2023-10-19</b> </summary>
+- The project is open source and the model weights are open for download. <br/>
 </details>
 
 # 2. Chat-LM-small model training process
@@ -51,9 +69,9 @@ T5 model (Text-To-Text Transfer Transformer), for details, see the paper: [Explo
 
 The model source code comes from huggingface, see: [T5ForConditionalGeneration](https://github.com/huggingface/transformers/blob/main/src/transformers/models/t5/modeling_t5.py#L1557).
 
-For model configuration, see `T5ModelConfig` under `config.py`. The official `T5-base`: `encoder layer` and `decoder layer` are both 12 layers. In this project, these two parameters are modified to 10 layers.
+For model configuration, see [model_config.json](https://huggingface.co/charent/Chat-LM-small/blob/main/model_config.json). The official `T5-base`: `encoder layer` and `decoder layer` are both 12 layers. In this project, these two parameters are modified to 10 layers.
 
-Model parameters: 0.7B. Word list size: 29298, including only Chinese and a small amount of English.
+Model parameters: 210M. Word list size: 29298, including only Chinese and a small amount of English.
 
 ## 2.3 Training process
 hardware:
@@ -85,44 +103,47 @@ By default, `TextIteratorStreamer` of `huggingface transformers` is used to impl
 ### 2.4.3 Dialogue display
 ![](./img/show1.png)
 
-There are problems: the pre-training dataset only has more than 9 million, and the model parameters are only 0.7B. It cannot cover all aspects, and there will be situations where the answer is wrong and the generator is nonsense.
+There are problems: the pre-training dataset only has more than 9 million, and the model parameters are only 210M. It cannot cover all aspects, and there will be situations where the answer is wrong and the generator is nonsense.
 
-# 三、使用说明
-克隆项目：
+# 3. Instructions for use
+Clone project:
 ```bash
 git clone --depth 1 https://github.com/charent/Chat-LM-small.git
 
 cd Chat-LM-small
 ```
 
-## 3.1 安装依赖 
-本项目推荐使用`python 3.10`，过老的python版本可能不兼容所依赖的第三方库。
+## 3.1 Install dependencies
+It is recommended to use `python 3.10` for this project. Older python versions may not be compatible with the third-party libraries it depends on.
 
-pip安装：
+pip installation:
 ```bash
 pip install -r ./requirements.txt
-``` 
+```
 
-如果pip安装了CPU版本的pytorch，可以通过下面的命令安装CUDA版本的pytorch：
+If pip installed the CPU version of pytorch, you can install the CUDA version of pytorch with the following command:
 ```bash
-# pip 安装torch + cu118
+# pip install torch + cu118
 pip3 install torch --index-url https://download.pytorch.org/whl/cu118
 ```
 
-conda安装：
+conda installation:
 ```bash
 conda install --yes --file ./requirements.txt
 ```
 
-## 3.2 下载预训练模型及词表
-从`Hugging Face Hub`下载模型及文件，需要先安装[Git LFS](https://docs.github.com/zh/repositories/working-with-files/managing-large-files/installing-git-large-file-storage)，然后运行:
-```bash 
+## 3.2 Download the pre-trained model and model configuration file
+
+Download model weights and configuration files from `Hugging Face Hub`, you need to install [Git LFS](https://docs.github.com/zh/repositories/working-with-files/managing-large-files/installing-git-large -file-storage), then run:
+
+```bash
 git clone https://huggingface.co/charent/Chat-LM-small
 ```
-也可以直接从`Hugging Face Hub`仓库[Chat-LM-small](https://huggingface.co/charent/Chat-LM-small)手工下载，将下载的文件移动到`model_save`目录下即可。
+
+You can also manually download it directly from the `Hugging Face Hub` warehouse [Chat-LM-small](https://huggingface.co/charent/Chat-LM-small) and move the downloaded file to the `model_save` directory. .
     
-## 3.3 Text to Text 预训练 
-1. 预训练数据集示例
+## 3.3 Text to Text pre-training
+1. Pre-training dataset example
 ```json
 {
     "prompt": "对于花园街，你有什么了解或看法吗？",
@@ -143,9 +164,9 @@ git clone https://huggingface.co/charent/Chat-LM-small
      accelerate config
      ```
 
-     Start training. If you want to use the configuration provided by the project, please add the parameter `--config_file ./accelerate.yaml` after the following command `accelerate launch`. *This configuration is based on the single-machine 2xGPU configuration. *
+     Start training. If you want to use the configuration provided by the project, please add the parameter `--config_file ./accelerate.yaml` after the following command `accelerate launch`. *This configuration is based on the single-machine 2xGPU configuration.*  
 
-     *There are two scripts for pre-training. The trainer implemented in this project corresponds to `train.py`, and the trainer implemented by huggingface corresponds to `pre_train.py`. You can use either one and the effect will be the same. The training information display of the trainer implemented in this project is more beautiful, and it is easier to modify the training details (such as loss function, log records, etc.). All support breakpoints to continue training. The trainer implemented in this project supports continuing training after a breakpoint at any position. Press ` ctrl+c` will save the breakpoint information when exiting the script. *
+     *There are two scripts for pre-training. The trainer implemented in this project corresponds to `train.py`, and the trainer implemented by huggingface corresponds to `pre_train.py`. You can use either one and the effect will be the same. The training information display of the trainer implemented in this project is more beautiful, and it is easier to modify the training details (such as loss function, log records, etc.). All support checkpoint to continue training. The trainer implemented in this project supports continuing training after a breakpoint at any position. Press ` ctrl+c` will save the breakpoint information when exiting the script.*
 
      Single machine and single card:
      ```bash
@@ -229,13 +250,14 @@ Make sure there are the following files in the `model_save` directory:
 ```bash
 Chat-LM-small
 ├─model_save
-│ ├─chat_lm_t5.pre7.sft9w.dpo6k.bin
-| └─tokenizer
-| ├─special_tokens_map.json
-| ├─tokenizer.json
-| └─tokenizer_config.json
+│  ├─chat_lm_t5.pre7.sft9w.dpo6k.bin
+|  ├─model_config.json
+|  └─tokenizer
+|     ├─special_tokens_map.json
+|     ├─tokenizer.json
+|     └─tokenizer_config.json
 ```
-Only the `chat_lm_t5.pre7.sft9w.dpo6k.bin` file needs to be downloaded manually. The files in the `tokenizer` folder are included when cloning the Git repository.
+The files `chat_lm_t5.pre7.sft9w.dpo6k.bin` and `model_config.json` need to be downloaded manually. The files in the `tokenizer` folder are included when cloning the Git repository.
 
 1. Console run:
 ```bash
@@ -264,7 +286,7 @@ If you think this project is helpful to you, please quote it.
 ```conf
 @misc{Charent2023,
     author={Charent Chen},
-    title={A small chinese chatbot with 0.7B parameters base on T5 model},
+    title={A small chinese chatbot with 210M parameters base on T5 model},
     year={2023},
     publisher = {GitHub},
     journal = {GitHub repository},
