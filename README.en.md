@@ -10,7 +10,7 @@ Chat-LM-small is a small Chinese chat model with only 210M (0.2B) parameters. It
 - Make public all pre-training, SFT instruction fine-tuning, and DPO preference optimization datasets.
 - Use the `Huggingface` NLP framework, including `transformers`, `accelerate`, `trl`, `peft`, etc.
 - Self-implemented `trainer`, supporting pre-training and SFT fine-tuning on a single machine with a single card or with multiple cards on a single machine. It supports stopping at any position during training and continuing training at any position.
-- Pre-training: Integrated into end-to-end `text-to-text` pre-training, non-`mask` mask prediction pre-training.
+- Pre-training: Integrated into end-to-end `Text-to-Text` pre-training, non-`mask` mask prediction pre-training.
      - Open source all data cleaning, dataset construction, dataset loading optimization and other processes;
      - tokenizer multi-process word frequency statistics, supports tokenizer training of `sentencepiece` and `huggingface tokenizers`;
      - Pre-training supports checkpoint at any step, and training can be continued from the breakpoint;
@@ -31,6 +31,7 @@ Chat-LM-small is a small Chinese chat model with only 210M (0.2B) parameters. It
 - Updated pre-training, SFT and DPO scripts. <br/>
 - update `tokenizer` to `PreTrainedTokenizerFast`. <br/>
 - Refactor the `dataset` code to support dynamic maximum length. The maximum length of each batch is determined by the longest text in the batch, saving GPU memory. <br/>
+- Added `tokenizer` training details. <br/>
 </details>
 
 <details close>
@@ -61,11 +62,11 @@ All datasets come from the **Single Round Conversation** dataset published on th
 6. belle open source instruction training data, introduction: [BELLE](https://github.com/LianjiaTech/BELLE), download: [BelleGroup](https://huggingface.co/BelleGroup), only select `Belle_open_source_1M` , `train_2M_CN`, and `train_3.5M_CN` contain some data with short answers, no complex table structure, and translation tasks (no English vocabulary list), totaling 3.7 million rows, and 3.38 million rows remain after cleaning.
 7. Wikipedia entry data, piece together the entries into prompts, the first `N` words of the encyclopedia are the answers, use the encyclopedia data of `202309`, and after cleaning, the remaining 1.19 million entry prompts and answers . Wiki download: [zhwiki](https://dumps.wikimedia.org/zhwiki/), convert the downloaded bz2 file to wiki.txt reference: [WikiExtractor](https://github.com/apertium/WikiExtractor).
 
-The total number of datasets is 10.23 million: Text to Text pre-training set: 9.3 million, evaluation set: 25,000 (because the decoding is slow, the evaluation set is not set too large). ~~Test set: 900,000~~
+The total number of datasets is 10.23 million: Text-to-Text pre-training set: 9.3 million, evaluation set: 25,000 (because the decoding is slow, the evaluation set is not set too large). ~~Test set: 900,000~~
 SFT fine-tuning and DPO optimization datasets are shown below.
 
 ## 2.2 Model
-T5 model (Text-To-Text Transfer Transformer), for details, see the paper: [Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer](https://arxiv.org/abs/1910.10683).
+T5 model (Text-to-Text Transfer Transformer), for details, see the paper: [Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer](https://arxiv.org/abs/1910.10683).
 
 The model source code comes from huggingface, see: [T5ForConditionalGeneration](https://github.com/huggingface/transformers/blob/main/src/transformers/models/t5/modeling_t5.py#L1557).
 
@@ -86,21 +87,24 @@ CPU: Intel(R) i5-13600k @ 5.1GHz
 Memory: 32 GB
 GPU: NVIDIA GeForce RTX 4060 Ti 16GB * 1
 ```
-1. **text to text pre-training**: The learning rate is a dynamic learning rate from `1e-4` to `5e-3`, and the pre-training time is 8 days. Training loss:
+
+1. **tokenizer training**: The existing `tokenizer` training library has OOM problems when encountering large corpus. Therefore, the full corpus is merged and constructed according to word frequency according to a method similar to `BPE`, and the operation takes half a day.
+   
+2. **Text-to-Text pre-training**: The learning rate is a dynamic learning rate from `1e-4` to `5e-3`, and the pre-training time is 8 days. Training loss:
 ![traing loss](img/train_loss.png)
 
-2. **prompt supervised fine-tuning (SFT)**: Use the `belle` instruction training dataset (both instruction and answer lengths are below 512), with a dynamic learning rate from `1e-7` to `5e-5` , the fine-tuning time is 2 days. Fine-tuning loss:
+3. **prompt supervised fine-tuning (SFT)**: Use the `belle` instruction training dataset (both instruction and answer lengths are below 512), with a dynamic learning rate from `1e-7` to `5e-5` , the fine-tuning time is 2 days. Fine-tuning loss:
 ![finetune loss](img/sft_loss.png)
 
-3. **dpo direct preference optimization**: dataset [alpaca-gpt4-data-zh](https://huggingface.co/datasets/c-s-ale/alpaca-gpt4-data-zh) as `chosen` text , in step `2`, the SFT model performs batch `generate` on the prompts in the dataset, and obtains the `rejected` text, which takes 1 day, dpo full preference optimization, learning rate `le-5`, half precision `fp16`, total `2` `epoch`, taking 3h. dpo loss:
+4. **dpo direct preference optimization**: dataset [alpaca-gpt4-data-zh](https://huggingface.co/datasets/c-s-ale/alpaca-gpt4-data-zh) as `chosen` text , in step `2`, the SFT model performs batch `generate` on the prompts in the dataset, and obtains the `rejected` text, which takes 1 day, dpo full preference optimization, learning rate `le-5`, half precision `fp16`, total `2` `epoch`, taking 3h. dpo loss:
 ![dpo loss](img/dpo_loss.png)
 
-## 2.4 Dialogue effect display
+## 2.4 chat show
 ### 2.4.1 stream chat
 By default, `TextIteratorStreamer` of `huggingface transformers` is used to implement streaming dialogue, and only `greedy search` is supported. If you need `beam sample` and other generation methods, please change the `stream_chat` parameter of `cli_demo.py` to `False` .
 ![](./img/stream_chat.gif)
 
-### 2.4.3 Dialogue display
+### 2.4.3 Dialogue show
 ![](./img/show1.png)
 
 There are problems: the pre-training dataset only has more than 9 million, and the model parameters are only 210M. It cannot cover all aspects, and there will be situations where the answer is wrong and the generator is nonsense.
@@ -142,7 +146,28 @@ git clone https://huggingface.co/charent/Chat-LM-small
 
 You can also manually download it directly from the `Hugging Face Hub` warehouse [Chat-LM-small](https://huggingface.co/charent/Chat-LM-small) and move the downloaded file to the `model_save` directory. .
     
-## 3.3 Text to Text pre-training
+
+## 3.3 Tokenizer training
+
+I originally planned to directly use the ready-made `tokenizer` library for training (such as `sentencepiece`), but it is easy to OOM when the data set is large. In addition, the corpus in various fields of the pre-training data set is unbalanced, which will produce many unnecessary mergers. Finally, use `jieba` word segmentation to segment all the pre-training corpus and count the word frequency, and only retain words and words that appear more than 1500 times. Refer to the `BPE model` saving format of `PreTrainedTokenizerFast` to construct `tokenzier`, and finally convert it to `PreTrainedTokenizerFast`. The core code is as follows. For detailed processing, see `utils/train_tokenizer.py`.
+
+
+```python
+# Construct merge array
+words_merge_list = []
+for word in words_dict.keys():
+    n = len(word)
+    if n >= 2:
+        # a, b split 12345 example： 1 2345,  12 345,   123 45,   1234 5
+        for i in range(1, n):
+            a, b = ''.join(word[0: i]), ''.join(word[i: ])
+
+            if a in words_dict and b in words_dict:
+                words_merge_list.append((a, b))
+```
+This project also provides an example of using the `tokenizer` that comes with the pre-trained model to retrain the `tokenizer` based on your own corpus, see `train_tokenizer.ipynb`. Note that after retraining `tokenizer`, the weights of the pre-trained model will not be available, and the model weights need to be retrained because the `id` corresponding to `token` has changed.
+
+## 3.4 Text-to-Text pre-training
 1. Pre-training dataset example
 ```json
 {
@@ -196,9 +221,11 @@ You can also manually download it directly from the `Hugging Face Hub` warehouse
      python pre_train.py
      ```
 
-## 3.4 SFT fine-tuning
+## 3.5 Supervised Fine-tuning, SFT
+
 The SFT dataset all comes from the contribution of [BELLE](https://github.com/LianjiaTech/BELLE). Thank you. The SFT datasets are: [generated_chat_0.4M](https://huggingface.co/datasets/BelleGroup/generated_chat_0.4M), [train_0.5M_CN](https://huggingface.co/datasets/BelleGroup/train_0.5M_CN ) and [train_2M_CN](https://huggingface.co/datasets/BelleGroup/train_2M_CN), about 1.37 million rows remain after cleaning.
 Example of fine-tuning dataset with sft command:
+
 ```json
 {
     "prompt": "解释什么是欧洲启示录",
@@ -217,8 +244,7 @@ accelerate launch --multi_gpu --num_processes 2 ./train.py --is_finetune=True
 python sft_train.py
 ```
 
-## 3.5 RLHF (Reinforcement Learning Human Feedback Optimization Method)
-### 3.5.1 Preference optimization method
+## 3.6 RLHF (Reinforcement Learning Human Feedback Optimization Method)
 
 Here are two common preferred methods: PPO and DPO. Please search papers and blogs for specific implementations.
 
@@ -238,14 +264,14 @@ DPO preference optimization dataset example:
         "prompt": "为给定的产品创建一个创意标语。，输入：可重复使用的水瓶。",
         "chosen": "\"保护地球，从拥有可重复使用的水瓶开始！\"",
         "rejected": "\"让你的水瓶成为你的生活伴侣，使用可重复使用的水瓶，让你的水瓶成为你的伙伴\""
-    },
+    }
 ```
 Run preference optimization:
 ```bash
 pythondpo_train.py
 ```
 
-## 3.6 Reasoning
+## 3.7 Infering
 Make sure there are the following files in the `model_save` directory:
 ```bash
 Chat-LM-small
@@ -265,7 +291,7 @@ python cli_demo.py
 ```
 
 2. API call
-```
+```bash
 python api_demo.py
 ```
 

@@ -10,7 +10,7 @@ Chat-LM-small为中文对话小模型，模型参数只有210M（0.2B），可�
 - 公开所有预训练、SFT指令微调、DPO偏好优化数据集。
 - 使用`Huggingface`NLP框架，包括`transformers`、`accelerate`、`trl`、`peft`等。
 - 自实现`trainer`，支持单机单卡、单机多卡进行预训练、SFT微调。训练过程中支持在任意位置停止，及在任意位置继续训练。
-- 预训练：整合为端到端的`text-to-text`预训练，非`mask`掩码预测预训练。
+- 预训练：整合为端到端的`Text-to-Text`预训练，非`mask`掩码预测预训练。
     - 开源所有数据清洗、数据集构造、数据集加载优化等流程；
     - tokenizer多进程词频统计，支持`sentencepiece`、`huggingface tokenizers`的tokenizer训练；
     - 预训练支持任意位置断点，可从断点处继续训练;
@@ -31,6 +31,7 @@ Chat-LM-small为中文对话小模型，模型参数只有210M（0.2B），可�
 - 更新预训练、SFT及DPO脚本。 <br/>
 - 更新`tokenizer`为`PreTrainedTokenizerFast`。 <br/>
 - 重构`dataset`代码，支持动态最大长度，每个批次的最大长度由该批次的最长文本决定，节省显存。 <br/>
+- 补充`tokenizer`训练细节。 <br/>
 </details>
 
 <details close> 
@@ -62,11 +63,11 @@ Chat-LM-small为中文对话小模型，模型参数只有210M（0.2B），可�
 6. belle开源的指令训练数据，介绍：[BELLE](https://github.com/LianjiaTech/BELLE)，下载：[BelleGroup](https://huggingface.co/BelleGroup)，仅选取`Belle_open_source_1M`、`train_2M_CN`、及`train_3.5M_CN`中部分回答较短、不含复杂表格结构、翻译任务（没做英文词表）的数据，共370万行，清洗后剩余338万行。
 7. 维基百科（Wikipedia）词条数据，将词条拼凑为提示语，百科的前`N`个词为回答，使用`202309`的百科数据，清洗后剩余119万的词条提示语和回答。Wiki下载：[zhwiki](https://dumps.wikimedia.org/zhwiki/)，将下载的bz2文件转换为wiki.txt参考：[WikiExtractor](https://github.com/apertium/WikiExtractor)。 
 
-数据集总数量1023万：Text to Text预训练集：930万，评估集：2.5万（因为解码较慢，所以没有把评估集设置太大）。~~测试集：90万。~~ 
+数据集总数量1023万：Text-to-Text预训练集：930万，评估集：2.5万（因为解码较慢，所以没有把评估集设置太大）。~~测试集：90万。~~ 
 SFT微调和DPO优化数据集见下文。
 
 ## 2.2 模型
-T5模型（Text-To-Text Transfer Transformer），详情见论文: [Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer](https://arxiv.org/abs/1910.10683)。
+T5模型（Text-to-Text Transfer Transformer），详情见论文: [Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer](https://arxiv.org/abs/1910.10683)。
 
 模型源码来自huggingface，见：[T5ForConditionalGeneration](https://github.com/huggingface/transformers/blob/main/src/transformers/models/t5/modeling_t5.py#L1557)。
 
@@ -87,15 +88,17 @@ CPU: Intel(R) i5-13600k @ 5.1GHz
 内存：32 GB
 显卡：NVIDIA GeForce RTX 4060 Ti 16GB * 1
 ```
-1. **text to text 预训练**：学习率为`1e-4`到`5e-3`的动态学习率，预训练时间为8天。训练损失： 
+1. **tokenizer 训练**： 现有`tokenizer`训练库遇到大语料时存在OOM问题，故全量语料按照类似`BPE`的方法根据词频合并、构造词库，运行耗时半天。
+
+2. **Text-to-Text 预训练**：学习率为`1e-4`到`5e-3`的动态学习率，预训练时间为8天。训练损失： 
 
 ![traing loss](img/train_loss.png) 
 
-1. **prompt监督微调（SFT）**：使用`belle`指令训练数据集（指令和回答长度都在512以下），学习率为`1e-7`到`5e-5`的动态学习率，微调时间2天。微调损失： 
+3. **prompt监督微调（SFT）**：使用`belle`指令训练数据集（指令和回答长度都在512以下），学习率为`1e-7`到`5e-5`的动态学习率，微调时间2天。微调损失： 
    
 ![finetune loss](img/sft_loss.png) 
 
-1. **dpo直接偏好优化**：数据集[alpaca-gpt4-data-zh](https://huggingface.co/datasets/c-s-ale/alpaca-gpt4-data-zh)作为`chosen`文本，步骤`2`中SFT模型对数据集中的prompt做批量`generate`，得到`rejected`文本，耗时1天，dpo全量偏好优化，学习率`le-5`，半精度`fp16`,共`2`个`epoch`，耗时3h。dpo损失： 
+4. **dpo直接偏好优化**：数据集[alpaca-gpt4-data-zh](https://huggingface.co/datasets/c-s-ale/alpaca-gpt4-data-zh)作为`chosen`文本，步骤`2`中SFT模型对数据集中的prompt做批量`generate`，得到`rejected`文本，耗时1天，dpo全量偏好优化，学习率`le-5`，半精度`fp16`,共`2`个`epoch`，耗时3h。dpo损失： 
  
 ![dpo loss](img/dpo_loss.png) 
 
@@ -145,8 +148,27 @@ git clone https://huggingface.co/charent/Chat-LM-small
 ```
 
 也可以直接从`Hugging Face Hub`仓库[Chat-LM-small](https://huggingface.co/charent/Chat-LM-small)手工下载，将下载的文件移动到`model_save`目录下即可。
-    
-## 3.3 Text to Text 预训练 
+
+## 3.3 Tokenizer训练
+
+原本打算直接用现成的`tokenizer`库训练的（如`sentencepiece`），但是数据集一大就容易OOM。另外预训练数据集各个领域的语料不平衡，会产生很多不必要的合并。最后使用`jieba`分词对所有的预训练语料切词后统计词频，只保留出现1500次以上的字、词，参照`PreTrainedTokenizerFast`的`BPE model`的保存格式，构造`tokenzier`，最后转换为`PreTrainedTokenizerFast`。核心代码如下，详细的处理过程见`utils/train_tokenizer.py`。
+
+```python
+# 构造merge数组
+words_merge_list = []
+for word in words_dict.keys():
+    n = len(word)
+    if n >= 2:
+        # a, b切分12345示例： 1 2345,  12 345,   123 45,   1234 5
+        for i in range(1, n):
+            a, b = ''.join(word[0: i]), ''.join(word[i: ])
+
+            if a in words_dict and b in words_dict:
+                words_merge_list.append((a, b))
+```
+本项目还提供了使用预训练模型自带的`tokenizer`根据自己的语料重新训练`tokenizer`的例子，见`train_tokenizer.ipynb`。注意，重新训练`tokenizer`后，预训练模型的权重将无法使用，需要重新训练模型权重，因为`token`对应的`id`变了。
+
+## 3.4 Text-to-Text 预训练 
 
 1. 预训练数据集示例
 ```json
@@ -201,7 +223,7 @@ git clone https://huggingface.co/charent/Chat-LM-small
     python pre_train.py
     ```
 
-## 3.4 SFT微调 
+## 3.5 SFT微调 
 SFT数据集全部来自[BELLE](https://github.com/LianjiaTech/BELLE)大佬的贡献，感谢。SFT数据集分别为：[generated_chat_0.4M](https://huggingface.co/datasets/BelleGroup/generated_chat_0.4M)、[train_0.5M_CN](https://huggingface.co/datasets/BelleGroup/train_0.5M_CN)和[train_2M_CN](https://huggingface.co/datasets/BelleGroup/train_2M_CN)，清洗后剩余约137万行。
 sft指令微调数据集示例：
 ```json
@@ -223,8 +245,7 @@ accelerate launch --multi_gpu --num_processes 2 ./train.py --is_finetune=True
 python sft_train.py
 ```
 
-## 3.5 RLHF（强化学习人类反馈优化方法）
-### 3.5.1 偏好优化方法
+## 3.6 RLHF（强化学习人类反馈优化方法）
 
 偏好方法这里介绍常见的两种：PPO和DPO，具体实现请自行搜索论文及博客。
 
@@ -244,7 +265,7 @@ DPO偏好优化数据集示例：
         "prompt": "为给定的产品创建一个创意标语。，输入：可重复使用的水瓶。",
         "chosen": "\"保护地球，从拥有可重复使用的水瓶开始！\"",
         "rejected": "\"让你的水瓶成为你的生活伴侣，使用可重复使用的水瓶，让你的水瓶成为你的伙伴\""
-    },
+    }
 ```
 
 运行偏好优化：
@@ -272,7 +293,7 @@ python cli_demo.py
 ```
 
 2. API调用
-```
+```bash
 python api_demo.py
 ```
 

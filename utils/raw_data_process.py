@@ -765,7 +765,7 @@ def merge_dataset_as_single_file(groups_cnt: int=50000, max_len: int=512, min_le
 
     log.info("merge into file: {}, 全部数据共{}行，清洗后剩余{}行".format(save_file, all_cnt, keep_cnt), save_to_file=True)
 
-def shuffle_parquet_dataset(parquet_file: str, shuffle_file: str, seed: int=23333) -> None:
+def shuffle_parquet_dataset(parquet_file: str, shuffle_file: str, seed: int=23333, groups_cnt: int=65536) -> None:
     '''
     打乱一个parquet文件数据集
     '''
@@ -780,7 +780,11 @@ def shuffle_parquet_dataset(parquet_file: str, shuffle_file: str, seed: int=2333
     if exists(shuffle_file): 
         assert delete_file(shuffle_file)
     
-    write_single_parquet_file(shuffle_file, df)
+    # 分块写入parquet，否则小内存读取直接OOM
+    n = len(df)
+    for i in range(0, n, groups_cnt):
+        cur_group_df = df[i: i + groups_cnt]
+        write_single_parquet_file(shuffle_file, cur_group_df)
 
 def count_my_json_data() -> None:
     '''
