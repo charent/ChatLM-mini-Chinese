@@ -1,13 +1,13 @@
-# Chat-LM-small
+# 0.2B small Chinese chat language model
 
-# 1. Introduction
+# 1. 👋Introduction
 *阅读中文文档 [中文](README.md).*
 
-The parameters of today's large language models tend to be large, and consumer-level computers are relatively slow for simple inference, let alone training a model from scratch.The goal of this project is to sort out the entire training process of a generative language model, including data cleaning, tokenizer training, model pre-training, SFT instruction fine-tuning, RLHF optimization, etc. 
+Today's large language models tend to have large parameters, and consumer-grade computers are slow to do simple inference, let alone train a model from scratch. The goal of this project is to organize the training process of generative language models, including data cleaning, tokenizer training, model pre-training, SFT instruction fine-tuning, RLHF optimization, etc.
 
-Chat-LM-small is a small Chinese chat model with only 210M (0.2B) parameters. It can be pre-trained on  machine with a minimum of 4GB of GPU memory (`batch_size=1`, `fp16` or `bf16`), `float16` loading and inference only require a minimum of 512MB of GPU memory.
+ChatLM-mini-Chinese is a small Chinese chat model with only 0.2B (added shared weight is about 210M) parameters. It can be pre-trained on  machine with a minimum of 4GB of GPU memory (`batch_size=1`, `fp16` or `bf16`), `float16` loading and inference only require a minimum of 512MB of GPU memory.
 
-- Make public all pre-training, SFT instruction fine-tuning, and DPO preference optimization datasets.
+- Make public all pre-training, SFT instruction fine-tuning, and DPO preference optimization datasets sources.
 - Use the `Huggingface` NLP framework, including `transformers`, `accelerate`, `trl`, `peft`, etc.
 - Self-implemented `trainer`, supporting pre-training and SFT fine-tuning on a single machine with a single card or with multiple cards on a single machine. It supports stopping at any position during training and continuing training at any position.
 - Pre-training: Integrated into end-to-end `Text-to-Text` pre-training, non-`mask` mask prediction pre-training.
@@ -50,7 +50,7 @@ Chat-LM-small is a small Chinese chat model with only 210M (0.2B) parameters. It
 - The project is open source and the model weights are open for download. <br/>
 </details>
 
-# 2. Chat-LM-small model training process
+# 2. 🛠️ChatLM-0.2B-Chinese model training process
 ## 2.1 Pre-training dataset
 All datasets come from the **Single Round Conversation** dataset published on the Internet. After data cleaning and formatting, they are saved as parquet files. For the data processing process, see `utils/raw_data_process.py`. Main datasets include:
 
@@ -70,9 +70,9 @@ T5 model (Text-to-Text Transfer Transformer), for details, see the paper: [Explo
 
 The model source code comes from huggingface, see: [T5ForConditionalGeneration](https://github.com/huggingface/transformers/blob/main/src/transformers/models/t5/modeling_t5.py#L1557).
 
-For model configuration, see [model_config.json](https://huggingface.co/charent/Chat-LM-small/blob/main/model_config.json). The official `T5-base`: `encoder layer` and `decoder layer` are both 12 layers. In this project, these two parameters are modified to 10 layers.
+For model configuration, see [model_config.json](https://huggingface.co/charent/ChatLM-Chinese-0.2B/blob/main/model_config.json). The official `T5-base`: `encoder layer` and `decoder layer` are both 12 layers. In this project, these two parameters are modified to 10 layers.
 
-Model parameters: 210M. Word list size: 29298, including only Chinese and a small amount of English.
+Model parameters: 0.2B. Word list size: 29298, including only Chinese and a small amount of English.
 
 ## 2.3 Training process
 hardware:
@@ -104,17 +104,17 @@ GPU: NVIDIA GeForce RTX 4060 Ti 16GB * 1
 By default, `TextIteratorStreamer` of `huggingface transformers` is used to implement streaming dialogue, and only `greedy search` is supported. If you need `beam sample` and other generation methods, please change the `stream_chat` parameter of `cli_demo.py` to `False` .
 ![](./img/stream_chat.gif)
 
-### 2.4.3 Dialogue show
+### 2.4.2 Dialogue show
 ![](./img/show1.png)
 
-There are problems: the pre-training dataset only has more than 9 million, and the model parameters are only 210M. It cannot cover all aspects, and there will be situations where the answer is wrong and the generator is nonsense.
+There are problems: the pre-training dataset only has more than 9 million, and the model parameters are only 0.2B. It cannot cover all aspects, and there will be situations where the answer is wrong and the generator is nonsense.
 
-# 3. Instructions for use
+# 3. 📑Instructions for use
 Clone project:
 ```bash
-git clone --depth 1 https://github.com/charent/Chat-LM-small.git
+git clone --depth 1 https://github.com/charent/ChatLM-mini-Chinese.git
 
-cd Chat-LM-small
+cd ChatLM-mini-Chinese
 ```
 
 ## 3.1 Install dependencies
@@ -141,10 +141,10 @@ conda install --yes --file ./requirements.txt
 Download model weights and configuration files from `Hugging Face Hub`, you need to install [Git LFS](https://docs.github.com/zh/repositories/working-with-files/managing-large-files/installing-git-large -file-storage), then run:
 
 ```bash
-git clone https://huggingface.co/charent/Chat-LM-small
+git clone --depth 1 https://huggingface.co/charent/ChatLM-Chinese-0.2B
 ```
 
-You can also manually download it directly from the `Hugging Face Hub` warehouse [Chat-LM-small](https://huggingface.co/charent/Chat-LM-small) and move the downloaded file to the `model_save` directory. .
+You can also manually download it directly from the `Hugging Face Hub` warehouse [ChatLM-mini-Chinese](https://huggingface.co/charent/ChatLM-Chinese-0.2B) and move the downloaded file to the `model_save` directory. .
     
 
 ## 3.3 Tokenizer training
@@ -274,7 +274,7 @@ pythondpo_train.py
 ## 3.7 Infering
 Make sure there are the following files in the `model_save` directory:
 ```bash
-Chat-LM-small
+ChatLM-mini-Chinese
 ├─model_save
 │  ├─chat_lm_t5.pre7.sft9w.dpo6k.bin
 |  ├─model_config.json
@@ -307,18 +307,18 @@ curl --location '127.0.0.1:8812/api/chat' \
 ```
 ![api demo](./img/api_example.png)
 
-# 4. Quote
-If you think this project is helpful to you, please quote it.
+# 4. 🎓Citation
+If you think this project is helpful to you, please site it.
 ```conf
 @misc{Charent2023,
     author={Charent Chen},
-    title={A small chinese chatbot with 210M parameters base on T5 model},
+    title={A small chinese chat language model with 0.2B parameters base on T5},
     year={2023},
     publisher = {GitHub},
     journal = {GitHub repository},
-    howpublished = {\url{https://github.com/charent/Chat-LM-small}},
+    howpublished = {\url{https://github.com/charent/ChatLM-mini-Chinese}},
 }
 ```
 
-# 5. Other matters
+# 5. 🤔Other matters
 This project does not bear any risks and responsibilities arising from data security and public opinion risks caused by open source models and codes, or any model being misled, abused, disseminated, or improperly exploited.
