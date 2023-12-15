@@ -1,13 +1,13 @@
-# Chat-LM-small
+# 中文对话0.2B小模型 ChatLM-Chinese-0.2B
 
-# 一、介绍
+# 一、👋介绍 
 *Read this in [English](README.en.md).*
-现在的大语言模型的参数往往较大，消费级电脑单纯做推理都比较慢，更别说想自己从头开始训练一个模型了。 本项目的目标是梳理整套生成式语言模型的训练流程，包括数据清洗、tokenizer训练、模型预训练、SFT指令微调、RLHF优化等。 
+现在的大语言模型的参数往往较大，消费级电脑单纯做推理都比较慢，更别说想自己从头开始训练一个模型了。本项目的目标是整理生成式语言模型的训练流程，包括数据清洗、tokenizer训练、模型预训练、SFT指令微调、RLHF优化等。 
 
-Chat-LM-small为中文对话小模型，模型参数只有210M（0.2B），可以在最低4GB显存的机器进行预训练（`batch_size=1`，`fp16`或者` bf16`），`float16`加载、推理最少只需要512MB显存。 
+ChatLM-mini-Chinese为中文对话小模型，模型参数只有0.2B（算共享权重约210M），可以在最低4GB显存的机器进行预训练（`batch_size=1`，`fp16`或者` bf16`），`float16`加载、推理最少只需要512MB显存。 
 
 
-- 公开所有预训练、SFT指令微调、DPO偏好优化数据集。
+- 公开所有预训练、SFT指令微调、DPO偏好优化数据集来源。
 - 使用`Huggingface`NLP框架，包括`transformers`、`accelerate`、`trl`、`peft`等。
 - 自实现`trainer`，支持单机单卡、单机多卡进行预训练、SFT微调。训练过程中支持在任意位置停止，及在任意位置继续训练。
 - 预训练：整合为端到端的`Text-to-Text`预训练，非`mask`掩码预测预训练。
@@ -51,7 +51,8 @@ Chat-LM-small为中文对话小模型，模型参数只有210M（0.2B），可�
 </details>
 
 
-# 二、Chat-LM-small模型训练过程
+# 二、🛠️ChatLM-0.2B-Chinese模型训练过程 
+
 ## 2.1 预训练数据集
 所有数据集均来自互联网公开的**单轮对话**数据集，经过数据清洗、格式化后保存为parquet文件。数据处理过程见`utils/raw_data_process.py`。主要数据集包括： 
 
@@ -71,9 +72,9 @@ T5模型（Text-to-Text Transfer Transformer），详情见论文: [Exploring th
 
 模型源码来自huggingface，见：[T5ForConditionalGeneration](https://github.com/huggingface/transformers/blob/main/src/transformers/models/t5/modeling_t5.py#L1557)。
 
-模型配置见[model_config.json](https://huggingface.co/charent/Chat-LM-small/blob/main/model_config.json)，官方的`T5-base`：`encoder layer`和`decoder layer `均为为12层，本项目这两个参数修改为10层。 
+模型配置见[model_config.json](https://huggingface.co/charent/ChatLM-Chinese-0.2B/blob/main/model_config.json)，官方的`T5-base`：`encoder layer`和`decoder layer `均为为12层，本项目这两个参数修改为10层。 
 
-模型参数：210M。词表大小：29298，仅包含中文和少量英文。
+模型参数：0.2B。词表大小：29298，仅包含中文和少量英文。
 
 ## 2.3 训练过程
 硬件：
@@ -107,17 +108,17 @@ CPU: Intel(R) i5-13600k @ 5.1GHz
 默认使用`huggingface transformers`的 `TextIteratorStreamer`实现流式对话，只支持`greedy search`，如果需要`beam sample`等其他生成方式，请将`cli_demo.py`的`stream_chat`参数修改为`False`。
 ![](./img/stream_chat.gif)
 
-### 2.4.3 对话展示
+### 2.4.2 对话展示
 ![](./img/show1.png)
 
-存在问题：预训练数据集只有900多万，模型参数也仅210M，不能涵盖所有方面，会有答非所问、废话生成器的情况。
+存在问题：预训练数据集只有900多万，模型参数也仅0.2B，不能涵盖所有方面，会有答非所问、废话生成器的情况。
 
-# 三、使用说明
+# 三、📑使用说明
 克隆项目：
 ```bash
-git clone --depth 1 https://github.com/charent/Chat-LM-small.git
+git clone --depth 1 https://github.com/charent/ChatLM-mini-Chinese.git
 
-cd Chat-LM-small
+cd ChatLM-mini-Chinese
 ```
 
 ## 3.1 安装依赖 
@@ -144,10 +145,10 @@ conda install --yes --file ./requirements.txt
 从`Hugging Face Hub`下载模型权重及配置文件，需要先安装[Git LFS](https://docs.github.com/zh/repositories/working-with-files/managing-large-files/installing-git-large-file-storage)，然后运行: 
 
 ```bash 
-git clone https://huggingface.co/charent/Chat-LM-small
+git clone --depth 1 https://huggingface.co/charent/ChatLM-Chinese-0.2B
 ```
 
-也可以直接从`Hugging Face Hub`仓库[Chat-LM-small](https://huggingface.co/charent/Chat-LM-small)手工下载，将下载的文件移动到`model_save`目录下即可。
+也可以直接从`Hugging Face Hub`仓库[ChatLM-Chinese-0.2B](https://huggingface.co/charent/ChatLM-Chinese-0.2B)手工下载，将下载的文件移动到`model_save`目录下即可。
 
 ## 3.3 Tokenizer训练
 
@@ -276,7 +277,7 @@ python dpo_train.py
 ## 3.6 推理 
 确保`model_save`目录下有以下文件：
 ```bash
-Chat-LM-small
+ChatLM-mini-Chinese
 ├─model_save
 │  ├─chat_lm_t5.pre7.sft9w.dpo6k.bin
 |  ├─model_config.json
@@ -309,20 +310,20 @@ curl --location '127.0.0.1:8812/api/chat' \
 ![api demo](./img/api_example.png)
 
 
-# 四、引用
+# 四、🎓引用
 如果你觉得本项目对你有所帮助，欢迎引用。
 ```conf
 @misc{Charent2023,
     author={Charent Chen},
-    title={A small chinese chatbot with 210M parameters base on T5 model},
+    title={A small chinese chat language model with 0.2B parameters base on T5},
     year={2023},
     publisher = {GitHub},
     journal = {GitHub repository},
-    howpublished = {\url{https://github.com/charent/Chat-LM-small}},
+    howpublished = {\url{https://github.com/charent/ChatLM-mini-Chinese}},
 }
 ```
 
-# 五、其他事项
+# 五、🤔其他事项
 本项目不承担开源模型和代码导致的数据安全、舆情风险或发生任何模型被误导、滥用、传播、不当利用而产生的风险和责任。
 
 <!-- # 提示
