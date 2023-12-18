@@ -107,7 +107,7 @@ class TextToTextModel(Module):
         generation_config.pad_token_id = 0
         generation_config.decoder_start_token_id = self.t5_config.decoder_start_token_id
         generation_config.max_new_tokens = max_seq_len
-        generation_config.repetition_penalty = 1.1 # 重复词惩罚
+        # generation_config.repetition_penalty = 1.1 # 重复词惩罚
 
         if search_type == 'greedy':
             generation_config.num_beams = 1

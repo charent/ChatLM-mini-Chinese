@@ -444,8 +444,8 @@ class ChatTrainer:
 
 
                 # 删除decode出来字符间的空格
-                outputs = [fixed_space(sentance) for sentance in outputs]
-                target_ids = [fixed_space(sentance) for sentance in target_ids]
+                outputs = [fixed_space(sentence) for sentence in outputs]
+                target_ids = [fixed_space(sentence) for sentence in target_ids]
 
                 # print(outputs, target_ids)
 
@@ -563,8 +563,8 @@ class ChatTrainer:
                 target_ids = batch_decode(target_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)
 
                 # 删除decode出来字符间的空格
-                outputs = [fixed_space(sentance) for sentance in outputs]
-                target_ids = [fixed_space(sentance) for sentance in target_ids]
+                outputs = [fixed_space(sentence) for sentence in outputs]
+                target_ids = [fixed_space(sentence) for sentence in target_ids]
 
                 # print('outputs: {}'.format(outputs[0:5]))
                 # print('target_ids: {}'.format(target_ids[0:5]))

@@ -1041,7 +1041,7 @@ def dataset_length_cnt() -> None:
     plt.subplot(2, 2, 4)
     plot_sub_bar(plt, le320_pd['length'], le320_pd['count'], title='response length < 320', color='limegreen')
 
-    plt.savefig(PROJECT_ROOT +  '/img/sentance_length.png')
+    plt.savefig(PROJECT_ROOT +  '/img/sentence_length.png')
     plt.show()
 
 def process_belle_knowledge_enhanced_dataset_for_finetune(max_len: int=320, group_cnt: int=50000) -> None:

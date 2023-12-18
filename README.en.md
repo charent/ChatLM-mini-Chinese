@@ -23,8 +23,15 @@ ChatLM-mini-Chinese is a small Chinese chat model with only 0.2B (added shared w
 - Preference optimization: Use DPO to optimize all preferences.
      - Support using `peft lora` for preference optimization;
      - Supports model merging, `Lora adapter` can be merged into the original model.
+- Support downstream task fine-tuning: [finetune_examples](./finetune_examples/info_extract/) gives a fine-tuning example of the **Triple Information Extraction Task**. The model dialogue capability after fine-tuning is still there.
 
 🟢**Latest Update**
+<details close>
+<summary> <b>2023-12-18</b> </summary>
+- Supplementary use of the `ChatLM-mini-0.2B` model to fine-tune the downstream triplet information extraction task code and display the extraction results. <br/>
+- Updated readme documentation. <br/>
+</details>
+
 <details close>
 <summary> <b>2023-12-14</b> </summary>
 - Updated model weight files after SFT and DPO. <br/>
@@ -149,7 +156,7 @@ You can also manually download it directly from the `Hugging Face Hub` warehouse
 
 ## 3.3 Tokenizer training
 
-I originally planned to directly use the ready-made `tokenizer` library for training (such as `sentencepiece`), but it is easy to OOM when the data set is large. In addition, the corpus in various fields of the pre-training data set is unbalanced, which will produce many unnecessary mergers. Finally, use `jieba` word segmentation to segment all the pre-training corpus and count the word frequency, and only retain words and words that appear more than 1500 times. Refer to the `BPE model` saving format of `PreTrainedTokenizerFast` to construct `tokenzier`, and finally convert it to `PreTrainedTokenizerFast`. The core code is as follows. For detailed processing, see `utils/train_tokenizer.py`.
+I originally planned to directly use the ready-made `tokenizer` library for training (such as `sentencepiece`), but it is easy to OOM when the dataset is large. In addition, the corpus in various fields of the pre-training dataset is unbalanced, which will produce many unnecessary mergers. Finally, use `jieba` word segmentation to segment all the pre-training corpus and count the word frequency, and only retain words and words that appear more than 1500 times. Refer to the `BPE model` saving format of `PreTrainedTokenizerFast` to construct `tokenzier`, and finally convert it to `PreTrainedTokenizerFast`. The core code is as follows. For detailed processing, see `utils/train_tokenizer.py`.
 
 
 ```python
@@ -306,6 +313,30 @@ curl --location '127.0.0.1:8812/api/chat' \
 }'
 ```
 ![api demo](./img/api_example.png)
+
+## 3.8 Fine-tuning of downstream tasks
+
+Here we take the triplet information in the text as an example to do downstream fine-tuning. Traditional deep learning extraction methods for this task can be found in the repository [pytorch_IE_model](https://github.com/charent/pytorch_IE_model). Extract all the triples in a piece of text, such as the sentence `"Sketching Essays" is a book published by Metallurgical Industry in 2006, the author is Zhang Lailiang`, extract the triples `(Sketching Essays, author, Zhang Lailiang)` and `( Sketching essays, publishing house, metallurgical industry)`.
+
+The original dataset is: [Baidu Triplet Extraction dataset](https://aistudio.baidu.com/datasetdetail/11384). Example of the processed fine-tuned dataset format:
+```json
+{
+    "prompt": "请抽取出给定句子中的所有三元组。给定句子：《家乡的月亮》是宋雪莱演唱的一首歌曲，所属专辑是《久违的哥们》",
+    "response": "[(家乡的月亮,歌手,宋雪莱),(家乡的月亮,所属专辑,久违的哥们)]"
+}
+```
+
+You can directly use the `sft_train.py` script for fine-tuning. The script [finetune_IE_task.ipynb](./finetune_examples/info_extract/finetune_IE_task.ipynb) contains the detailed decoding process. The training dataset is about `17000`, the learning rate is `5e-5`, and the training epoch is `5`. The dialogue capabilities of other tasks have not disappeared after fine-tuning.
+
+![Conversation ability after fine-tuning of information extraction task](./img/ie_task_chat.png)
+
+Fine-tuning effects:
+The public `dev` dataset of `Baidu triple extraction dataset` is used as a test set to compare with the traditional method [pytorch_IE_model](https://github.com/charent/pytorch_IE_model).
+
+| Model | F1 score | Precision | Recall |
+| :--- | :----: | ---: | ---: |
+| ChatLM-Chinese-0.2B fine-tuning | 0.74 | 0.75 | 0.73 |
+| Traditional deep learning method | 0.80 | 0.79 | 80.1 |
 
 # 4. 🎓Citation
 If you think this project is helpful to you, please site it.

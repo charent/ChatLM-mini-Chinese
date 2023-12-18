@@ -1,6 +1,6 @@
 from threading import Thread
 import platform
-
+from typing import Union
 import torch
 
 from transformers import TextIteratorStreamer,PreTrainedTokenizerFast
@@ -33,6 +33,7 @@ class ChatBot:
         self.tokenizer = tokenizer
         self.encode = tokenizer.encode_plus
         self.batch_decode = tokenizer.batch_decode
+        self.batch_encode_plus = tokenizer.batch_encode_plus
         
         empty_model = None
         with init_empty_weights():
@@ -107,28 +108,34 @@ class ChatBot:
         
         return self.streamer
     
-    def chat(self, input_txt: str, ) -> str:
+    def chat(self, input_txt: Union[str, list[str]] ) -> Union[str, list[str]]:
         '''
         非流式生成，可以使用beam search、beam sample等方法生成文本。
         '''
-        encoded = self.encode(input_txt + '[EOS]')
+        if isinstance(input_txt, str):
+            input_txt = [input_txt]
+        elif not isinstance(input_txt, list):
+            raise Exception('input_txt mast be a str or list[str]')
         
-        input_ids = torch.LongTensor([encoded.input_ids]).to(self.device)
-        attention_mask = torch.LongTensor([encoded.attention_mask]).to(self.device)
+        # add EOS token
+        input_txts = [f"{txt}[EOS]" for txt in input_txt]
+        encoded = self.batch_encode_plus(input_txts,  padding=True)
+        input_ids = torch.LongTensor(encoded.input_ids).to(self.device)
+        attention_mask = torch.LongTensor(encoded.attention_mask).to(self.device)
 
         outputs = self.model.my_generate(
                             input_ids=input_ids,
                             attention_mask=attention_mask,
                             max_seq_len=self.infer_config.max_seq_len,
-                            search_type='beam',
+                            search_type='greedy',
                         )
 
         outputs = self.batch_decode(outputs.cpu().numpy(),  clean_up_tokenization_spaces=True, skip_special_tokens=True)
 
-        if len(outputs) == 0 or len(outputs[0]) == 0:
-            return "我是一个参数很少的AI模型🥺，知识库较少，无法直接回答您的问题，换个问题试试吧👋"
+        note = "我是一个参数很少的AI模型🥺，知识库较少，无法直接回答您的问题，换个问题试试吧👋"
+        outputs = [item if len(item) != 0 else note for item in outputs]
 
         # 删除decode出来字符间的空格
-        outputs = fixed_space(outputs[0])
+        outputs = [fixed_space(item) for item in outputs]
 
-        return outputs
+        return outputs[0] if len(outputs) == 1 else outputs

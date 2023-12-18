@@ -24,7 +24,7 @@ def get_dataset(file: str, split: str, encode_fn: callable, encode_args: dict,  
     dataset = load_dataset('json', data_files=file,  split=split, cache_dir=cache_dir)
 
     def merge_prompt_and_responses(sample: dict) -> Dict[str, str]:
-        # add an eos token note that end of sentance, using in generate.
+        # add an eos token note that end of sentence, using in generate.
         prompt = encode_fn(sample['prompt'] + '[EOS]', **encode_args)
         response = encode_fn(sample['response'] + '[EOS]', **encode_args)
         return {
