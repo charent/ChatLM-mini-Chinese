@@ -23,8 +23,15 @@ ChatLM-mini-Chinese为中文对话小模型，模型参数只有0.2B（算共享
 - 偏好优化：使用DPO进行全量偏好优化。
     - 支持使用`peft lora`进行偏好优化；
     - 支持模型合并，可将`Lora adapter`合并到原始模型中。
+- 支持下游任务微调：[finetune_examples](./finetune_examples/info_extract/)给出**三元组信息抽取任务**的微调示例，微调后的模型对话能力仍在。
 
 🟢**最近更新**
+<details close> 
+<summary>  <b>2023-12-18</b> </summary>
+- 补充利用`ChatLM-mini-0.2B`模型微调下游三元组信息抽取任务代码及抽取效果展示 。<br/>
+- 更新readme文档。<br/>
+</details>
+
 <details close> 
 <summary>  <b>2023-12-14</b> </summary>
 - 更新SFT、DPO后的模型权重文件。 <br/>
@@ -274,7 +281,7 @@ DPO偏好优化数据集示例：
 python dpo_train.py
 ```
 
-## 3.6 推理 
+## 3.7 推理 
 确保`model_save`目录下有以下文件：
 ```bash
 ChatLM-mini-Chinese
@@ -308,6 +315,30 @@ curl --location '127.0.0.1:8812/api/chat' \
 }'
 ```
 ![api demo](./img/api_example.png)
+
+## 3.8 下游任务微调
+
+这里以文本中三元组信息为例，做下游微调。该任务的传统深度学习抽取方法见仓库[pytorch_IE_model](https://github.com/charent/pytorch_IE_model)。抽取出一段文本中所有的三元组，如句子`《写生随笔》是冶金工业2006年出版的图书，作者是张来亮`，抽取出三元组`(写生随笔,作者,张来亮)`和`(写生随笔,出版社,冶金工业)`。 
+
+原始数据集为：[百度三元组抽取数据集](https://aistudio.baidu.com/datasetdetail/11384)。加工得到的微调数据集格式示例：
+```json
+{
+    "prompt": "请抽取出给定句子中的所有三元组。给定句子：《家乡的月亮》是宋雪莱演唱的一首歌曲，所属专辑是《久违的哥们》",
+    "response": "[(家乡的月亮,歌手,宋雪莱),(家乡的月亮,所属专辑,久违的哥们)]"
+}
+```
+
+可以直接使用`sft_train.py`脚本进行微调，脚本[finetune_IE_task.ipynb](./finetune_examples/info_extract/finetune_IE_task.ipynb)里面包含详细的解码过程。训练数据集约`17000`条，学习率`5e-5`，训练epoch`5`。微调后其他任务的对话能力也没有消失。
+
+![信息抽取任务微调后的对话能力](./img/ie_task_chat.png)
+
+微调效果：
+将`百度三元组抽取数据集`公开的`dev`数据集作为测试集，对比传统方法[pytorch_IE_model](https://github.com/charent/pytorch_IE_model)。
+
+|          模型            |   F1分数  |  精确率P |  召回率R |
+|          :---            |  :----:  |    ---:  |  ---:   |
+| ChatLM-Chinese-0.2B微调  |   0.74    |  0.75   |  0.73    |
+| 传统深度学习方法          |   0.80    |  0.79   |  80.1    |
 
 
 # 四、🎓引用

@@ -13,6 +13,77 @@ import ujson
 # 结束标点符号
 END_PUN = set(".。!！）)》}】?？\"”")
 
+
+def f1_p_r_compute(spo_list_pred: list, spo_list_true: list, repair: bool=False):
+    '''
+    spo_list: [ [(s,p,o)...], [(s,p,o)]], 每一行[(s,p,o)...]为一个句子中的spo
+    计算spo的f1分数，精确率，召回率，
+    '''
+    assert len(spo_list_pred) == len(spo_list_true)
+
+    def repair_song_album(spo_list: list, song: list, album: list):
+        '''
+        修复一条文本的'歌曲'和'专辑'的spo。对于歌曲x（subject）的关系歌手、作词、作曲，x必须同时存在于song和album中
+        '''
+        if len(song) == 0 and len(album) == 0:
+            return spo_list
+
+        ps = ['歌手', '作词', '作曲']
+        new_spo_list = []
+        for spo in spo_list:
+            s, p = spo[0], spo[1]
+            if p in ps and s in album and s not in song:
+                continue
+            new_spo_list.append(spo)
+        
+        return new_spo_list
+
+    def repair_song_album_list(spo_list: list):
+        '''
+        '''
+        new_spo_list = []
+        for spos in spo_list:
+            song, album = [], []
+            for spo in spos:
+                s, p, o = spo
+                if p == '所属专辑':
+                    song.append(s)
+                    album.append(o)
+            new_spo_list.append(repair_song_album(spos, song, album))
+        
+        return new_spo_list
+    if repair:
+        spo_list_pred = repair_song_album_list(spo_list_pred)
+        spo_list_true = repair_song_album_list(spo_list_true)
+
+    TP = 1e-10      # 正类判定为正类, A
+    # TN = 1e-10    # 负类判定为负类
+    TP_FP = 1e-10   # 检索到的, A + B
+    TP_FN = 1e-10   # 真正想要的，A + C
+    # FP = 1e-10    # 负类判定为正类
+    # FN = 1e-10    # 正类判定为负类
+
+    # p = a / (a + b)
+    # r = a / (a + c)
+    # f1 = 2pr / (p + r)
+
+    for i in range(len(spo_list_true)):
+        pred_set = set(spo_list_pred[i])
+        true_set = set(spo_list_true[i])
+
+        pred_true_set = pred_set & true_set     # 预测和真实取交集
+
+        TP += len(pred_true_set)    # 检索到且是想要的， A
+        TP_FP += len(pred_set)      # 检索到的，包括想要的和不想要的，A + B
+        TP_FN += len(true_set)      # 真正想要的， 包括检索到和没检索到的，A + C
+
+    p = TP / TP_FP
+    r = TP / TP_FN
+    f1 = (2 * p * r) / (p + r)
+    
+    return f1, p, r
+
+
 def fixed_response(item: str) -> str:
     '''
     修复被截断的回答，从末尾往回找第一个结束标点
@@ -28,22 +99,22 @@ def fixed_response(item: str) -> str:
     return ''.join(item[0: i + 1])
 
 
-def fixed_space(sentance: str)->str:
+def fixed_space(sentence: str)->str:
     '''单个空格删除，连续两个空格保留一个
     '''
-    n = len(sentance)
-    new_sentance = []
+    n = len(sentence)
+    new_sentence = []
     i = 0
     while i < n:
-        word =  sentance[i]
+        word =  sentence[i]
         if word != ' ':
-            new_sentance.append(word)
-        elif i + 1 < n and sentance[i + 1] == ' ':
-            new_sentance.append(word)
+            new_sentence.append(word)
+        elif i + 1 < n and sentence[i + 1] == ' ':
+            new_sentence.append(word)
             i += 1 # 两个空格保留一个，指针往下走一步
         i += 1
 
-    return ''.join(new_sentance)
+    return ''.join(new_sentence)
 
 def get_free_space_of_disk(folder: str='./') -> float:
     '''

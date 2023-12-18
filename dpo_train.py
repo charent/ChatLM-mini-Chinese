@@ -29,7 +29,7 @@ def get_dataset(split: str, file: str, cache_dir: str = '.cache') -> Dataset:
 
     def split_prompt_and_responses(sample: dict) -> Dict[str, str]:
         return {
-            # add an eos token for signal that end of sentance, using in generate.
+            # add an eos token for signal that end of sentence, using in generate.
             "prompt": f"{sample['prompt']}[EOS]",
             "chosen": f"{sample['chosen']}[EOS]",
             "rejected": f"{sample['rejected']}[EOS]",
