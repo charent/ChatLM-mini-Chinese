@@ -334,9 +334,12 @@ Fine-tuning effects:
 The public `dev` dataset of `Baidu triple extraction dataset` is used as a test set to compare with the traditional method [pytorch_IE_model](https://github.com/charent/pytorch_IE_model).
 
 | Model | F1 score | Precision | Recall |
-| :--- | :----: | ---: | ---: |
+| :--- | :----: | :---: | :---: |
 | ChatLM-Chinese-0.2B fine-tuning | 0.74 | 0.75 | 0.73 |
+| ChatLM-Chinese-0.2B without pre-training | 0.51 | 0.53 | 0.49 |
 | Traditional deep learning method | 0.80 | 0.79 | 80.1 |
+
+Note: `ChatLM-Chinese-0.2B without pre-training` means directly initializing random parameters, starting training, learning rate `1e-4`, and other parameters are consistent with fine-tuning.
 
 # 4. 🎓Citation
 If you think this project is helpful to you, please site it.
