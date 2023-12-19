@@ -2,9 +2,12 @@ from os.path import dirname, abspath, exists
 from os import remove, mkdir
 import sentencepiece as spm
 from fastparquet import ParquetFile
-from tokenizers import Tokenizer
+import tokenizers
+from tokenizers import Tokenizer, decoders
 from tokenizers.models import BPE
 from tokenizers.trainers import BpeTrainer
+from tokenizers.pre_tokenizers import Punctuation, Digits, Metaspace
+from tokenizers.normalizers import NFKC 
 from rich import progress
 import ujson
 from jieba import lcut
@@ -55,41 +58,70 @@ def train_my_huggingface_tokenizer() -> None:
 
     tokenizer.save(tokenizer_save_path)
    
-def train_my_huggingface_wiki_tokenizer(max_train_line: int=1000000) -> None:
+def train_my_huggingface_wiki_tokenizer(max_train_line: int=None) -> None:
     '''
-    训练tokenizer with huggingface
+    训练tokenizer with huggingface，至少需要32G内存，运行大概需要半个小时。
     '''
 
     cropus_file = PROJECT_ROOT + '/data/raw_data/wiki.simple.txt'
-    tokenizer_save_path = PROJECT_ROOT + '/model_save/hf_bpe_tokenizer'
+    tokenizer_save_path = PROJECT_ROOT + '/model_save/hf_bpe_tokenizer.josn'
 
     # if not exists(tokenizer_save_path): mkdir(tokenizer_save_path)
 
-    def get_training_corpus(buffer_size: int=10000) -> list:
+    def get_training_corpus(buffer_size: int=1000, chunk_len: int=2048) -> list:
+        '''
+        一个文本块大小2048
+        '''
         line_cnt = 0
+        buffer = []
         with open(cropus_file, 'r', encoding='utf-8') as f_read:
-            cur_rows = []
+            cur_chunk_txt, txt_len = [], 0
             for line in f_read:
-                if len(line) < 32: continue
-                cur_rows.append(line)
-                line_cnt += 1
-                if len(cur_rows) >= buffer_size:
-                    yield cur_rows
-                    cur_rows = []
-                
-                if line_cnt >= max_train_line:
-                    break
 
-            if len(cur_rows) > 0:
-                yield cur_rows
+                cur_chunk_txt.append(line)
+                txt_len += len(line)
+                line_cnt += 1
+
+                if txt_len >= chunk_len:
+                    buffer.append(
+                        ''.join(cur_chunk_txt)
+                    )
+                    cur_chunk_txt, txt_len = [], 0
+                
+                if len(buffer) >= buffer_size:
+                    yield buffer
+                    buffer = []
+
+                if isinstance(max_train_line, int) and line_cnt > max_train_line: break
+                
+            # yield last
+            if len(buffer) > 0: yield buffer        
 
     model = BPE(unk_token="[UNK]")
-    tokenizer = Tokenizer(model)
-    # tokenizer.pre_tokenizer = Whitespace()
 
-    trainer = BpeTrainer(vocab_size=40960, min_frequency=1000, show_progress=True, \
-                         special_tokens=["[PAD]", "[CLS]","[SEP]", "[MASK]", "[UNK]"])
+    tokenizer = Tokenizer(model)
+    
+    special_tokens = ["[PAD]","[EOS]","[SEP]","[BOS]", "[CLS]", "[MASK]", "[UNK]"]
+
+    # 用兼容等价分解合并对utf编码进行等价组合，比如全角A转换为半角A
+    tokenizer.normalizer = tokenizers.normalizers.Sequence([NFKC()])
+
+    # 标点符号，数字，及Metaspace预分割（否则decode出来没有空格）
+    tokenizer.pre_tokenizer = tokenizers.pre_tokenizers.Sequence(
+        [Punctuation(), Digits(individual_digits=True), Metaspace()]
+    )
+
+    tokenizer.add_special_tokens(special_tokens)
+    tokenizer.decoder = decoders.Metaspace()
+
+    trainer = BpeTrainer(vocab_size=40960, min_frequency=100, show_progress=True, special_tokens=special_tokens)
     tokenizer.train_from_iterator(get_training_corpus(), trainer=trainer)
+
+    # add \t \n 
+    if '\t' not in tokenizer.get_vocab():
+        tokenizer.add_tokens(['\t'])
+    if '\n' not in tokenizer.get_vocab():
+        tokenizer.add_tokens(['\n'])
 
     tokenizer.save(tokenizer_save_path)
 
@@ -383,10 +415,10 @@ def trained_tokenizer_to_PreTrainedTokenizerFast():
 if __name__ == '__main__':
     # train_my_huggingface_tokenizer()
 
-    # train_my_huggingface_wiki_tokenizer()
-
+    train_my_huggingface_wiki_tokenizer()
+    exit(0) 
     # train_my_BPE_tokenizer()
-
+   
     # step 1: 统计预训练语料的词频、字频
     get_corpus_dict()
     # get_cropus_dict_multi_process()
