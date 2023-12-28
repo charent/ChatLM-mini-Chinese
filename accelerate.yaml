@@ -7,7 +7,7 @@ deepspeed_config:
   offload_param_device: cpu
   zero3_init_flag: false
   zero3_save_16bit_model: false
-  zero_stage: 3
+  zero_stage: 2
 distributed_type: DEEPSPEED
 downcast_bf16: 'no'
 dynamo_config:
