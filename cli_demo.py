@@ -8,7 +8,6 @@ from rich.live import Live
 
 from model.infer import ChatBot
 from config import InferConfig
-from utils.functions import fixed_space
 
 infer_config = InferConfig()
 chat_bot = ChatBot(infer_config=infer_config)
@@ -88,7 +87,6 @@ def chat(stream: bool=True) -> None:
 
         with Live(rich_text, refresh_per_second=15) as live: 
             for i, word in enumerate(streamer):
-                word = fixed_space(word)   # 删除词之间的空格
                 rich_text.append(word)
                 stream_txt.append(word)
 

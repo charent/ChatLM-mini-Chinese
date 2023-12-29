@@ -1,3 +1,4 @@
+import os
 from threading import Thread
 import platform
 from typing import Union
@@ -11,33 +12,26 @@ from accelerate.utils import BnbQuantizationConfig, load_and_quantize_model
 
 # import 自定义类和函数
 from model.chat_model import TextToTextModel
-from utils.functions import json_to_dataclass, fixed_space
+from utils.functions import get_T5_config
 
-from config import InferConfig
+from config import InferConfig, T5ModelConfig
 
 class ChatBot:
     def __init__(self, infer_config: InferConfig) -> None:
         '''
         '''
-        
         self.infer_config = infer_config
-        
-        model_config_class = json_to_dataclass(infer_config.model_config_file, 'ModelConfig')
-        self.model_config = model_config_class()
-
-        # file_name=None会自动生成以当前日期命名的log文件名
-        # self.logger = Logger('chat_logs', std_out=True, save2file=True, file_name=None)
-
-         # 初始化tokenizer
-        tokenizer = PreTrainedTokenizerFast.from_pretrained(infer_config.tokenizer_dir)
+        # 初始化tokenizer
+        tokenizer = PreTrainedTokenizerFast.from_pretrained(infer_config.model_dir)
         self.tokenizer = tokenizer
         self.encode = tokenizer.encode_plus
         self.batch_decode = tokenizer.batch_decode
         self.batch_encode_plus = tokenizer.batch_encode_plus
         
+        t5_config = get_T5_config(T5ModelConfig(), vocab_size=len(tokenizer), decoder_start_token_id=tokenizer.pad_token_id, eos_token_id=tokenizer.eos_token_id)
         empty_model = None
         with init_empty_weights():
-            empty_model = TextToTextModel(config=self.model_config, decoder_start_token_id=tokenizer.pad_token_id)
+            empty_model = TextToTextModel(t5_config)
 
         if torch.cuda.device_count() >= 2 and platform.system().lower() == 'linux':
             # 量化配置
@@ -51,7 +45,7 @@ class ChatBot:
             # 加载模型
             model = load_and_quantize_model(
                     model=empty_model, 
-                    weights_location=infer_config.model_file, 
+                    weights_location=infer_config.model_dir, 
                     bnb_quantization_config=bnb_quantization_config, 
                 )
             
@@ -65,20 +59,29 @@ class ChatBot:
             try:
                 self.model = load_checkpoint_and_dispatch(
                     model=empty_model,
-                    checkpoint=infer_config.model_file,
+                    checkpoint=infer_config.model_dir,
                     device_map='auto',
                     dtype=torch.float16,
                 )
             except Exception as e:
                 # print(str(e), '`accelerate` load fail, try another load function.')
-                model = TextToTextModel(config=self.model_config, decoder_start_token_id=tokenizer.pad_token_id)
+                model = TextToTextModel(t5_config)
 
-                if  infer_config.model_file.endswith('.safetensors'):
+                if  os.path.isdir(infer_config.model_dir):
+
+                    # from_pretrained
+                    model = model.from_pretrained(infer_config.model_dir)
+
+                elif infer_config.model_dir.endswith('.safetensors'):
+
                     # load safetensors
-                    load_model(model.model, infer_config.model_file) 
+                    load_model(model, infer_config.model_dir) 
+
                 else:
+
                     # load torch checkpoint
-                    model.load_state_dict(torch.load(infer_config.model_file))  
+                    model.load_state_dict(torch.load(infer_config.model_dir))  
+
                 self.model = model
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -134,8 +137,5 @@ class ChatBot:
 
         note = "我是一个参数很少的AI模型🥺，知识库较少，无法直接回答您的问题，换个问题试试吧👋"
         outputs = [item if len(item) != 0 else note for item in outputs]
-
-        # 删除decode出来字符间的空格
-        outputs = [fixed_space(item) for item in outputs]
 
         return outputs[0] if len(outputs) == 1 else outputs
