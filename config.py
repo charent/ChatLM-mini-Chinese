@@ -12,13 +12,10 @@ class InferConfig:
     mixed_precision: str = "bf16"                   # 混合精度 ''no','fp16','bf16' or 'fp8'
 
     # 全量DPO模型文件
-    model_file: str = PROJECT_ROOT + '/model_save/chat_lm_t5.pre7.sft9w.dpo6k.bin'
+    model_dir: str = PROJECT_ROOT + '/model_save/dpo_model/'
 
     # lora PDO 合并后的模型文件
     # model_file: str = PROJECT_ROOT + '/model_save/chat_small_t5.best.dpo.lora_merged.bin'
-
-    model_config_file: str = PROJECT_ROOT + '/model_save/model_config.json'
-    tokenizer_dir: str = PROJECT_ROOT + '/model_save/tokenizer'
     
     # this confing for api demo:
     api_key: str = ""
@@ -27,7 +24,6 @@ class InferConfig:
     reload: bool = True
     workers: int = 1
     log_level: str = 'info'
-    
 
 
 #===================================================================================
@@ -35,8 +31,7 @@ class InferConfig:
 @dataclass
 class DpoConfig:
     max_seq_len: int = 512 + 8                  # 8 for eos token 
-    sft_model_file: str = PROJECT_ROOT + '/model_save/sft_9w.bin'
-    model_config_file: str = PROJECT_ROOT + '/model_save/model_config.json'
+    sft_model_file: str = PROJECT_ROOT + '/model_save/sft'
 
     tokenizer_dir: str = PROJECT_ROOT + '/model_save/tokenizer'
 
@@ -66,9 +61,8 @@ class DpoConfig:
 class SFTconfig:
     max_seq_len: int = 384 + 8                # 8 for eos token 
 
-    finetune_from_ckp_file = PROJECT_ROOT + '/model_save/chat_small_t5.7.pth'
+    finetune_from_ckp_file = PROJECT_ROOT + '/model_save/pretrain'
 
-    model_config_file: str = PROJECT_ROOT + '/model_save/model_config.json'
     tokenizer_dir: str = PROJECT_ROOT + '/model_save/tokenizer'
     sft_train_file: str = PROJECT_ROOT + '/data/sft_train.json'
 

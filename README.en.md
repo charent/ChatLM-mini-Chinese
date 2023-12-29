@@ -26,6 +26,13 @@ ChatLM-mini-Chinese is a small Chinese chat model with only 0.2B (added shared w
 - Support downstream task fine-tuning: [finetune_examples](./finetune_examples/info_extract/) gives a fine-tuning example of the **Triple Information Extraction Task**. The model dialogue capability after fine-tuning is still there.
 
 🟢**Latest Update**
+
+<details close>
+<summary> <b>2023-12-29</b> </summary>
+- Update the model code (weights is NOT changed), you can directly use `AutoModelForSeq2SeqLM.from_pretrained(...)` to load the model for using. <br/>
+- Updated readme documentation. <br/>
+</details>
+
 <details close>
 <summary> <b>2023-12-18</b> </summary>
 - Supplementary use of the `ChatLM-mini-0.2B` model to fine-tune the downstream triplet information extraction task code and display the extraction results. <br/>
@@ -116,15 +123,50 @@ By default, `TextIteratorStreamer` of `huggingface transformers` is used to impl
 
 There are problems: the pre-training dataset only has more than 9 million, and the model parameters are only 0.2B. It cannot cover all aspects, and there will be situations where the answer is wrong and the generator is nonsense.
 
-# 3. 📑Instructions for use
-Clone project:
+# 3. 📑Instructions for using
+## 3.1 Quick start:
+```python
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+import torch
+
+model_id = 'charent/ChatLM-Chinese-0.2B'
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+tokenizer = AutoTokenizer.from_pretrained(model_id)
+model = AutoModelForSeq2SeqLM.from_pretrained(model_id, trust_remote_code=True).to(device)
+
+txt = '如何评价Apple这家公司？'
+
+encode_ids = tokenizer([txt])
+input_ids, attention_mask = torch.LongTensor(encode_ids['input_ids']), torch.LongTensor(encode_ids['attention_mask'])
+
+outs = model.my_generate(
+    input_ids=input_ids.to(device),
+    attention_mask=attention_mask.to(device),
+    max_seq_len=256,
+    search_type='beam',
+)
+
+outs_txt = tokenizer.batch_decode(outs.cpu().numpy(), skip_special_tokens=True, clean_up_tokenization_spaces=True)
+print(outs_txt[0])
+```
+```txt
+Apple是一家专注于设计和用户体验的公司，其产品在设计上注重简约、流畅和功能性，而在用户体验方面则注重用户的反馈和使用体验。作为一家领先的科技公司，苹果公司一直致力于为用户提供最优质的产品和服务，不断推陈出新，不断创新和改进，以满足不断变化的市场需求。
+在iPhone、iPad和Mac等产品上，苹果公司一直保持着创新的态度，不断推出新的功能和设计，为用户提供更好的使用体验。在iPad上推出的iPad Pro和iPod touch等产品，也一直保持着优秀的用户体验。
+此外，苹果公司还致力于开发和销售软件和服务，例如iTunes、iCloud和App Store等，这些产品在市场上也获得了广泛的认可和好评。
+总的来说，苹果公司在设计、用户体验和产品创新方面都做得非常出色，为用户带来了许多便利和惊喜。
+
+```
+
+## 3.2 from clone code repository start
+
+### 3.2.1 Clone repository
 ```bash
 git clone --depth 1 https://github.com/charent/ChatLM-mini-Chinese.git
 
 cd ChatLM-mini-Chinese
 ```
-
-## 3.1 Install dependencies
+### 3.2.2 Install dependencies
 It is recommended to use `python 3.10` for this project. Older python versions may not be compatible with the third-party libraries it depends on.
 
 pip installation:
@@ -143,7 +185,7 @@ conda installation:
 conda install --yes --file ./requirements.txt
 ```
 
-## 3.2 Download the pre-trained model and model configuration file
+### 3.2.3 Download the pre-trained model and model configuration file
 
 Download model weights and configuration files from `Hugging Face Hub`, you need to install [Git LFS](https://docs.github.com/zh/repositories/working-with-files/managing-large-files/installing-git-large -file-storage), then run:
 
@@ -255,10 +297,10 @@ python sft_train.py
 
 Here are two common preferred methods: PPO and DPO. Please search papers and blogs for specific implementations.
 
-1. PPO method (approximate preference optimization, Proximal Policy Optimization)
-     Step 1: Use the fine-tuning dataset to do supervised fine-tuning (SFT, Supervised Finetuning).
-     Step 2: Use the preference dataset (a prompt contains at least 2 responses, one wanted response and one unwanted response. Multiple responses can be sorted by score, with the most wanted one having the highest score) to train the reward model (RM, Reward Model). You can use the `peft` library to quickly build the Lora reward model.
-     Step 3: Use RM to perform supervised PPO training on the SFT model so that the model meets preferences.
+1. PPO method (approximate preference optimization, Proximal Policy Optimization)  
+     Step 1: Use the fine-tuning dataset to do supervised fine-tuning (SFT, Supervised Finetuning).  
+     Step 2: Use the preference dataset (a prompt contains at least 2 responses, one wanted response and one unwanted response. Multiple responses can be sorted by score, with the most wanted one having the highest score) to train the reward model (RM, Reward Model). You can use the `peft` library to quickly build the Lora reward model.   
+     Step 3: Use RM to perform supervised PPO training on the SFT model so that the model meets preferences.   
 
 2. Use DPO (Direct Preference Optimization) fine-tuning (**This project uses the DPO fine-tuning method, which saves GPU memory**)
      On the basis of obtaining the SFT model, there is no need to train the reward model, and fine-tuning can be started by obtaining the positive answer (chosen) and the negative answer (rejected). The fine-tuned `chosen` text comes from the original dataset [alpaca-gpt4-data-zh](https://huggingface.co/datasets/c-s-ale/alpaca-gpt4-data-zh), and the rejected text `rejected` comes from SFT Model output after fine-tuning 1 epoch, two other datasets: [huozi_rlhf_data_json](https://huggingface.co/datasets/Skepsun/huozi_rlhf_data_json) and [rlhf-reward-single-round-trans_chinese](https:// huggingface.co/datasets/beyond/rlhf-reward-single-round-trans_chinese), a total of 80,000 dpo data after the merger.
@@ -283,14 +325,15 @@ Make sure there are the following files in the `model_save` directory:
 ```bash
 ChatLM-mini-Chinese
 ├─model_save
-│  ├─chat_lm_t5.pre7.sft9w.dpo6k.bin
-|  ├─model_config.json
-|  └─tokenizer
-|     ├─special_tokens_map.json
-|     ├─tokenizer.json
-|     └─tokenizer_config.json
+|  ├─chat_model.py
+|  ├─chat_model_config.py
+|  ├─config.json
+|  ├─generation_config.json
+|  ├─model.safetensors
+|  ├─special_tokens_map.json
+|  ├─tokenizer.json
+|  └─tokenizer_config.json
 ```
-The files `chat_lm_t5.pre7.sft9w.dpo6k.bin` and `model_config.json` need to be downloaded manually. The files in the `tokenizer` folder are included when cloning the Git repository.
 
 1. Console run:
 ```bash

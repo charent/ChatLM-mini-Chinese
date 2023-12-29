@@ -28,7 +28,7 @@ from utils.functions import (
     get_free_space_of_disk, 
     my_average,
     get_path_of_suffix_files,
-    fixed_space,
+    get_T5_config,
 )
 
 class ChatTrainer:
@@ -130,7 +130,6 @@ class ChatTrainer:
         '''
         log = self.logger
         train_config = self.train_config
-        model_config = self.model_config
         save_steps = self.train_config.save_steps
         logging_steps = self.train_config.logging_steps
 
@@ -208,23 +207,25 @@ class ChatTrainer:
         # T5: All labels set to `-100` are ignored (masked), the loss is only computed for labels in `[0, ..., config.vocab_size]`
         tokenizer = train_dataset.tokenizer
         decoder_start_token_id = tokenizer.pad_token_id
-        model_config.vocab_size = tokenizer.vocab_size  # 往config添加vocab_size
 
-        model = TextToTextModel(config=model_config, decoder_start_token_id=decoder_start_token_id)
+        # for t5, set decoder_start_token_id = pad_token_id
+        t5_config = get_T5_config(T5ModelConfig(), vocab_size=len(tokenizer), decoder_start_token_id=decoder_start_token_id, eos_token_id=tokenizer.eos_token_id)
+
+        model = TextToTextModel(t5_config)
 
         # 微调加载的模型并冻结embedding和encoder
         if is_finetune:
             model.load_state_dict(torch.load(train_config.finetune_from_ckp_file))
             # print(model)
             
-            layers_to_freeze = [model.model.shared, model.model.encoder]
+            layers_to_freeze = [model.shared, model.encoder]
 
             for layer in layers_to_freeze:
                  for param in layer.parameters():
                     param.requires_grad = False
 
         # 保存模型配置，方便修改配置后恢复
-        save_model_config(model.t5_config.to_diff_dict(), train_config.model_config_file)
+        save_model_config(t5_config.to_diff_dict(), train_config.model_config_file)
         
         # T5训练，论文推荐使用Adafactor
         optimizer = Adafactor(params=model.parameters(), lr=train_config.learn_rate)
@@ -283,7 +284,7 @@ class ChatTrainer:
                 TimeRemainingColumn(),
                 TimeElapsedColumn(),
                 TextColumn("[bold blue]{task.fields[show_info]}"),
-                refresh_per_second=0.2,  # 每5秒钟更新一次，不要频繁更新
+                refresh_per_second=1,  # 每1秒钟更新一次，不要频繁更新
                 )
             
             epoch_progress = progress.add_task(description='epoch: ', show_info='', total=train_config.epochs)
@@ -321,7 +322,7 @@ class ChatTrainer:
 
                 outputs = model(
                     input_ids=input_ids,
-                    input_mask=input_mask,
+                    attention_mask=input_mask,
                     labels=target_ids,
                 )
 
@@ -389,7 +390,6 @@ class ChatTrainer:
                 self.save_model('best')
                 accelerator.save_state(output_dir=train_config.train_state_dir)
 
-
             # 每个epoch打印一下日志
             if accelerator.is_main_process:
 
@@ -429,7 +429,7 @@ class ChatTrainer:
                 input_ids, input_mask = batch_data['input_ids'], batch_data['input_mask']
                 target_ids = batch_data['target_ids']
 
-                outputs = accelerator.unwrap_model(model).generate(
+                outputs = accelerator.unwrap_model(model).my_generate(
                     input_ids=input_ids,
                     attention_mask=input_mask,
                     max_seq_len=max_seq_len,
@@ -441,11 +441,6 @@ class ChatTrainer:
         
                 outputs = batch_decode(outputs, skip_special_tokens=True, clean_up_tokenization_spaces=False)
                 target_ids = batch_decode(target_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)
-
-
-                # 删除decode出来字符间的空格
-                outputs = [fixed_space(sentence) for sentence in outputs]
-                target_ids = [fixed_space(sentence) for sentence in target_ids]
 
                 # print(outputs, target_ids)
 
@@ -464,8 +459,9 @@ class ChatTrainer:
     def test(self, best_epoch: int=0) -> None:
         '''
         '''
+        import os 
+
         train_config = self.train_config
-        model_config = self.model_config
         log = self.logger
 
         # args for dataloader
@@ -505,11 +501,16 @@ class ChatTrainer:
 
         # T5: All labels set to `-100` are ignored (masked), the loss is only computed for labels in `[0, ..., config.vocab_size]`
         tokenizer = test_dataset.tokenizer
-        decoder_start_token_id = tokenizer.pad_token_id
-        model_config.vocab_size = tokenizer.vocab_size  # 往config添加vocab_size
 
-        model = TextToTextModel(config=model_config, decoder_start_token_id=decoder_start_token_id)
-        model.load_state_dict(torch.load(train_config.model_file.format(best_epoch)))
+        model_file = train_config.model_file.format(best_epoch)
+        if os.path.isdir(model_file):
+            # 传入文件夹则 from_pretrained
+            model = TextToTextModel.from_pretrained(model_file)
+        else:
+            # load_state_dict
+            t5_config = get_T5_config(T5ModelConfig(), vocab_size=len(tokenizer), decoder_start_token_id=tokenizer.pad_token_id, eos_token_id=tokenizer.eos_token_id)
+            model = TextToTextModel(t5_config)
+            model.load_state_dict(torch.load(model_file, map_location='cpu')) # set cpu for no exception
        
         model, test_dataloader = accelerator.prepare(
                 model, 
@@ -548,7 +549,7 @@ class ChatTrainer:
                 target_ids = batch_data['target_ids']
 
                 # s = time.time()
-                outputs = accelerator.unwrap_model(model).generate(
+                outputs = accelerator.unwrap_model(model).my_generate(
                     input_ids=input_ids,
                     attention_mask=input_mask,
                     max_seq_len=max_seq_len,
@@ -561,10 +562,6 @@ class ChatTrainer:
                 
                 outputs = batch_decode(outputs, skip_special_tokens=True, clean_up_tokenization_spaces=False)
                 target_ids = batch_decode(target_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)
-
-                # 删除decode出来字符间的空格
-                outputs = [fixed_space(sentence) for sentence in outputs]
-                target_ids = [fixed_space(sentence) for sentence in target_ids]
 
                 # print('outputs: {}'.format(outputs[0:5]))
                 # print('target_ids: {}'.format(target_ids[0:5]))

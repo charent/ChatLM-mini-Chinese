@@ -1,6 +1,7 @@
 # coding=utf-8
 from typing import Dict, Optional
 import time
+import os 
 
 import pandas as pd
 import torch
@@ -10,10 +11,11 @@ from trl import DPOTrainer
 from tokenizers import Tokenizer
 from peft import LoraConfig, TaskType, PeftModel
 
-from config import DpoConfig
+from config import DpoConfig, T5ModelConfig
 from model.chat_model import TextToTextModel
-from utils.functions import json_to_dataclass
+from utils.functions import get_T5_config
 
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 def get_dataset(split: str, file: str, cache_dir: str = '.cache') -> Dataset:
     """Load the Anthropic Helpful-Harmless dataset from Hugging Face and convert it to the necessary format.
@@ -40,21 +42,24 @@ def get_dataset(split: str, file: str, cache_dir: str = '.cache') -> Dataset:
 
 def train_dpo(config: DpoConfig, peft_config: LoraConfig=None) -> None:
 
-    # 1. 加载模型配置文件
-    model_config_class = json_to_dataclass(config.model_config_file, 'ModelConfig')
-    model_config = model_config_class()
-
-    # 2. 加载tokenizer
+    # step 1. 加载tokenizer
     tokenizer = PreTrainedTokenizerFast.from_pretrained(config.tokenizer_dir)
     
-    # 3. 加载预训练模型
-    model = TextToTextModel(config=model_config, decoder_start_token_id=tokenizer.pad_token_id)
-    model.load_state_dict(torch.load(config.sft_model_file))
-    model_train = model.model # un_pkg model
+    # step 2. 加载预训练模型
+    model_train, model_ref = None, None 
+    if os.path.isdir(config.sft_model_file):
+        # 传入文件夹则 from_pretrained
+        model_train = TextToTextModel.from_pretrained(config.sft_model_file)
+        model_ref = TextToTextModel.from_pretrained(config.sft_model_file)
+    else:
+        # load_state_dict
+        t5_config = get_T5_config(T5ModelConfig(), vocab_size=len(tokenizer), decoder_start_token_id=tokenizer.pad_token_id, eos_token_id=tokenizer.eos_token_id)
 
-    model_ref = TextToTextModel(config=model_config, decoder_start_token_id=tokenizer.pad_token_id)
-    model_ref.load_state_dict(torch.load(config.sft_model_file))
-    model_ref = model_ref.model
+        model_train = TextToTextModel(t5_config)
+        model_train.load_state_dict(torch.load(config.sft_model_file, map_location='cpu')) # set cpu for no exception
+
+        model_ref = TextToTextModel(t5_config)
+        model_ref.load_state_dict(torch.load(config.sft_model_file, map_location='cpu'))
     
     # 4. 加载训练数据集
     train_dataset = get_dataset("train", file=config.dpo_train_file)
@@ -104,7 +109,7 @@ def train_dpo(config: DpoConfig, peft_config: LoraConfig=None) -> None:
 
     # 8. 训练
     dpo_trainer.train(
-        resume_from_checkpoint=True
+        # resume_from_checkpoint=True
     )
 
     # 9. save log
@@ -118,30 +123,22 @@ def train_dpo(config: DpoConfig, peft_config: LoraConfig=None) -> None:
     dpo_trainer.save_model(model_save_dir)
     print('save model or lora adapter to: {}'.format(model_save_dir))
 
-    dpo_trainer.accelerator.wait_for_everyone()
-    model.model =  dpo_trainer.model
-    
-    if peft_config is not None:
-        sate_dict_dir = config.sft_model_file + '.dpo.lora.bin'
-
-        torch.save(model.state_dict(), sate_dict_dir)
-        print('save sate dict to: {}'.format(sate_dict_dir))
-
-
 def merge_lora_weight_into_model(config: DpoConfig, peft_config: LoraConfig) -> None:
 
-     # 0. 加载模型配置文件
-    model_config_class = json_to_dataclass(config.model_config_file, 'ModelConfig')
-    model_config = model_config_class()
-
-    # 1. 加载tokenizer
-    tokenizer_obj = Tokenizer.from_pretrained(config.tokenizer_dir)
+    # step 1. 加载tokenizer
+    tokenizer = PreTrainedTokenizerFast.from_pretrained(config.tokenizer_dir)
     
-    # 2. 加载预训练模型
-    model = TextToTextModel(config=model_config, decoder_start_token_id=tokenizer_obj.token_to_id('[PAD]'))
-    model.load_state_dict(torch.load(config.sft_model_file))
-    model_sft = model.model # un package model
-
+    # step 2. 加载预训练模型
+    sft_model = None
+    if os.path.isdir(config.sft_model_file):
+        # 传入文件夹则 from_pretrained
+        sft_model = TextToTextModel.from_pretrained(config.sft_model_file)
+    else:
+        # load_state_dict
+        t5_config = get_T5_config(T5ModelConfig(), vocab_size=len(tokenizer), decoder_start_token_id=tokenizer.pad_token_id, eos_token_id=tokenizer.eos_token_id)
+        sft_model = TextToTextModel(t5_config)
+        sft_model.load_state_dict(torch.load(config.sft_model_file, map_location='cpu')) # set cpu for no exception
+        
     # 注意这个路径要和上面的model_save_dir一致
     # train_dpo函数代码
         # 9. 保存模型/lora
@@ -151,14 +148,14 @@ def merge_lora_weight_into_model(config: DpoConfig, peft_config: LoraConfig) -> 
     adapter_save_dir = '/'.join(config.sft_model_file.split('/')[0: -1]) + '/lora'
     
     peft_model = PeftModel.from_pretrained(
-        model=model_sft,
+        model=sft_model,
         model_id=adapter_save_dir,
         config=peft_config,
         adapter_name='adapter',
     )
     
     # peft_model = PeftModel(
-    #     model=model_sft,
+    #     model=sft_model,
     #     peft_config=peft_config,
     #     adapter_name='adapter',
     # )
@@ -171,12 +168,10 @@ def merge_lora_weight_into_model(config: DpoConfig, peft_config: LoraConfig) -> 
 
     # 4. merge
     peft_model = peft_model.merge_and_unload()
-
-    model.model = peft_model # package model
     
     # 5. save
-    save_merge_file = config.sft_model_file + '.dpo.lora_merged.bin'
-    torch.save(model.state_dict(), save_merge_file)
+    save_merge_file = config.sft_model_file + '.dpo_lora_merged'
+    sft_model.save_pretrained(save_merge_file)
     print('save merge model file to: {}'.format(save_merge_file))
 
    

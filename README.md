@@ -26,6 +26,13 @@ ChatLM-mini-Chinese为中文对话小模型，模型参数只有0.2B（算共享
 - 支持下游任务微调：[finetune_examples](./finetune_examples/info_extract/)给出**三元组信息抽取任务**的微调示例，微调后的模型对话能力仍在。
 
 🟢**最近更新**
+
+<details close> 
+<summary>  <b>2023-12-29</b> </summary>
+- 更新模型代码（权重不变），可以直接使用`AutoModelForSeq2SeqLM.from_pretrained(...)`加载模型使用。<br/>
+- 更新readme文档。<br/>
+</details>
+
 <details close> 
 <summary>  <b>2023-12-18</b> </summary>
 - 补充利用`ChatLM-mini-0.2B`模型微调下游三元组信息抽取任务代码及抽取效果展示 。<br/>
@@ -121,15 +128,52 @@ CPU: Intel(R) i5-13600k @ 5.1GHz
 存在问题：预训练数据集只有900多万，模型参数也仅0.2B，不能涵盖所有方面，会有答非所问、废话生成器的情况。
 
 # 三、📑使用说明
-克隆项目：
+
+## 3.1 快速开始：
+```python
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+import torch
+
+model_id = 'charent/ChatLM-Chinese-0.2B'
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+tokenizer = AutoTokenizer.from_pretrained(model_id)
+model = AutoModelForSeq2SeqLM.from_pretrained(model_id, trust_remote_code=True).to(device)
+
+txt = '如何评价Apple这家公司？'
+
+encode_ids = tokenizer([txt])
+input_ids, attention_mask = torch.LongTensor(encode_ids['input_ids']), torch.LongTensor(encode_ids['attention_mask'])
+
+outs = model.my_generate(
+    input_ids=input_ids.to(device),
+    attention_mask=attention_mask.to(device),
+    max_seq_len=256,
+    search_type='beam',
+)
+
+outs_txt = tokenizer.batch_decode(outs.cpu().numpy(), skip_special_tokens=True, clean_up_tokenization_spaces=True)
+print(outs_txt[0])
+```
+```txt
+Apple是一家专注于设计和用户体验的公司，其产品在设计上注重简约、流畅和功能性，而在用户体验方面则注重用户的反馈和使用体验。作为一家领先的科技公司，苹果公司一直致力于为用户提供最优质的产品和服务，不断推陈出新，不断创新和改进，以满足不断变化的市场需求。
+在iPhone、iPad和Mac等产品上，苹果公司一直保持着创新的态度，不断推出新的功能和设计，为用户提供更好的使用体验。在iPad上推出的iPad Pro和iPod touch等产品，也一直保持着优秀的用户体验。
+此外，苹果公司还致力于开发和销售软件和服务，例如iTunes、iCloud和App Store等，这些产品在市场上也获得了广泛的认可和好评。
+总的来说，苹果公司在设计、用户体验和产品创新方面都做得非常出色，为用户带来了许多便利和惊喜。
+
+```
+
+## 3.2 从克隆仓库代码开始
+
+### 3.2.1 克隆项目：
 ```bash
 git clone --depth 1 https://github.com/charent/ChatLM-mini-Chinese.git
 
 cd ChatLM-mini-Chinese
 ```
+### 3.2.2 安装依赖 
 
-## 3.1 安装依赖 
-本项目推荐使用`python 3.10`，过老的python版本可能不兼容所依赖的第三方库。
+本项目推荐使用`python 3.10`，过老的python版本可能不兼容所依赖的第三方库。  
 
 pip安装：
 ```bash
@@ -147,12 +191,14 @@ conda安装：
 conda install --yes --file ./requirements.txt
 ```
 
-## 3.2 下载预训练模型及模型配置文件
+### 3.2.3 下载预训练模型及模型配置文件
 
 从`Hugging Face Hub`下载模型权重及配置文件，需要先安装[Git LFS](https://docs.github.com/zh/repositories/working-with-files/managing-large-files/installing-git-large-file-storage)，然后运行: 
 
 ```bash 
 git clone --depth 1 https://huggingface.co/charent/ChatLM-Chinese-0.2B
+
+mv ChatLM-Chinese-0.2B model_save
 ```
 
 也可以直接从`Hugging Face Hub`仓库[ChatLM-Chinese-0.2B](https://huggingface.co/charent/ChatLM-Chinese-0.2B)手工下载，将下载的文件移动到`model_save`目录下即可。
@@ -257,10 +303,10 @@ python sft_train.py
 
 偏好方法这里介绍常见的两种：PPO和DPO，具体实现请自行搜索论文及博客。
 
-1.  PPO方法（近似偏好优化,Proximal Policy Optimization）
-    步骤1：使用微调数据集做有监督微调（SFT， Supervised Finetuning）。 
-    步骤2：使用偏好数据集（一个prompt至少包含2个回复，一个想要的回复，一个不想要的回复。多个回复可以按照分数排序，最想要的分数最高）训练奖励模型（RM， Reward Model）。可使用`peft`库快速搭建Lora奖励模型。 
-    步骤3：利用RM对SFT模型进行有监督PPO训练，使得模型满足偏好。 
+1.  PPO方法（近似偏好优化,Proximal Policy Optimization）  
+    步骤1：使用微调数据集做有监督微调（SFT， Supervised Finetuning）。   
+    步骤2：使用偏好数据集（一个prompt至少包含2个回复，一个想要的回复，一个不想要的回复。多个回复可以按照分数排序，最想要的分数最高）训练奖励模型（RM， Reward Model）。可使用`peft`库快速搭建Lora奖励模型。   
+    步骤3：利用RM对SFT模型进行有监督PPO训练，使得模型满足偏好。   
 
 2.  使用DPO（直接偏好优化，Direct Preference Optimization）微调（**本项目采用DPO微调方法，比较节省显存**）
     在获得SFT模型的基础上，无需训练奖励模型，取得正向回答（chosen）和负向回答（rejected）即可开始微调。微调的`chosen`文本来自原数据集[alpaca-gpt4-data-zh](https://huggingface.co/datasets/c-s-ale/alpaca-gpt4-data-zh)，拒绝文本`rejected`来自SFT微调1个epoch后的模型输出，另外两个数据集：[huozi_rlhf_data_json](https://huggingface.co/datasets/Skepsun/huozi_rlhf_data_json)和[rlhf-reward-single-round-trans_chinese](https://huggingface.co/datasets/beyond/rlhf-reward-single-round-trans_chinese)，合并后共8万条dpo数据。
@@ -286,14 +332,15 @@ python dpo_train.py
 ```bash
 ChatLM-mini-Chinese
 ├─model_save
-│  ├─chat_lm_t5.pre7.sft9w.dpo6k.bin
-|  ├─model_config.json
-|  └─tokenizer
-|     ├─special_tokens_map.json
-|     ├─tokenizer.json
-|     └─tokenizer_config.json
+|  ├─chat_model.py
+|  ├─chat_model_config.py
+|  ├─config.json
+|  ├─generation_config.json
+|  ├─model.safetensors
+|  ├─special_tokens_map.json
+|  ├─tokenizer.json
+|  └─tokenizer_config.json
 ```
-文件`chat_lm_t5.pre7.sft9w.dpo6k.bin`和`model_config.json`需要手工下载，`tokenizer`文件夹下的文件在克隆Git仓库的时候自带。
 
 1. 控制台运行：
 ```bash
