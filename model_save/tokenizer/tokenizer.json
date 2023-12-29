@@ -68,9 +68,35 @@
     }
   ],
   "normalizer": null,
-  "pre_tokenizer": null,
+  "pre_tokenizer": {
+    "type": "Sequence",
+    "pretokenizers": [
+      {
+        "type": "Whitespace"
+      },
+      {
+        "type": "Punctuation",
+        "behavior": "Isolated"
+      },
+      {
+        "type": "Digits",
+        "individual_digits": true
+      },
+      {
+        "type": "Metaspace",
+        "replacement": "▁",
+        "add_prefix_space": true,
+        "prepend_scheme": "always"
+      }
+    ]
+  },
   "post_processor": null,
-  "decoder": null,
+  "decoder": {
+    "type": "Metaspace",
+    "replacement": "▁",
+    "add_prefix_space": true,
+    "prepend_scheme": "always"
+  },
   "model": {
     "type": "BPE",
     "dropout": null,

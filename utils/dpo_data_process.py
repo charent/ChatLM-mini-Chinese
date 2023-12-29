@@ -15,7 +15,6 @@ from logger import Logger
 from config import PROJECT_ROOT, InferConfig
 
 from utils.raw_data_process import delete_file
-from utils.functions import fixed_space
 
 log = Logger('data_process', save2file=True, file_name=PROJECT_ROOT + '/logs/raw_data_process.log')
 
@@ -113,10 +112,6 @@ def generate_alpaca_gpt4_reject_response(groups_cnt: int=50000, max_len: int=320
 
                 outputs = tokenizer.batch_decode(outputs.cpu().numpy(),  clean_up_tokenization_spaces=True, skip_special_tokens=True)
 
-            # 删除decode出来字符间的空格
-            outputs = [sentence.replace(' ', '') for sentence in outputs]
-
-            outputs = [fixed_space(sentence) for sentence in outputs ]
             model_outs.extend(outputs)
                 
       

@@ -1,7 +1,7 @@
 from collections import Counter
 from typing import Union
 from dataclasses import make_dataclass, field
-
+from transformers import T5Config
 import ctypes
 import os
 import platform
@@ -10,9 +10,30 @@ from nltk.translate.bleu_score import sentence_bleu
 import numpy as np
 import ujson
 
+from config import T5ModelConfig
+
 # 结束标点符号
 END_PUN = set(".。!！）)》}】?？\"”")
 
+
+def get_T5_config(config: T5ModelConfig, vocab_size: int, decoder_start_token_id: int=0, eos_token_id: int=1) -> T5Config:
+    '''
+    用户配置转换为T5Config
+    '''
+    t5_config = T5Config()
+    # t5_config.model_type = 'TextToTextModel'
+    # 初始化
+    t5_config.d_ff = config.d_ff
+    t5_config.d_kv = config.d_kv
+    t5_config.d_model = config.d_model
+    t5_config.num_decoder_layers = config.num_decoder_layers
+    t5_config.num_heads = config.num_heads
+    t5_config.num_layers = config.num_layers
+    t5_config.vocab_size = vocab_size
+    t5_config.decoder_start_token_id = decoder_start_token_id
+    t5_config.eos_token_id = eos_token_id
+
+    return t5_config
 
 def f1_p_r_compute(spo_list_pred: list, spo_list_true: list, repair: bool=False):
     '''
