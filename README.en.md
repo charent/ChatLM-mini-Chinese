@@ -84,7 +84,7 @@ T5 model (Text-to-Text Transfer Transformer), for details, see the paper: [Explo
 
 The model source code comes from huggingface, see: [T5ForConditionalGeneration](https://github.com/huggingface/transformers/blob/main/src/transformers/models/t5/modeling_t5.py#L1557).
 
-For model configuration, see [model_config.json](https://huggingface.co/charent/ChatLM-Chinese-0.2B/blob/main/model_config.json). The official `T5-base`: `encoder layer` and `decoder layer` are both 12 layers. In this project, these two parameters are modified to 10 layers.
+For model configuration, see [model_config.json](https://huggingface.co/charent/ChatLM-mini-Chinese/blob/main/config.json). The official `T5-base`: `encoder layer` and `decoder layer` are both 12 layers. In this project, these two parameters are modified to 10 layers.
 
 Model parameters: 0.2B. Word list size: 29298, including only Chinese and a small amount of English.
 
@@ -129,7 +129,7 @@ There are problems: the pre-training dataset only has more than 9 million, and t
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import torch
 
-model_id = 'charent/ChatLM-Chinese-0.2B'
+model_id = 'charent/ChatLM-mini-Chinese'
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -190,10 +190,10 @@ conda install --yes --file ./requirements.txt
 Download model weights and configuration files from `Hugging Face Hub`, you need to install [Git LFS](https://docs.github.com/zh/repositories/working-with-files/managing-large-files/installing-git-large -file-storage), then run:
 
 ```bash
-git clone --depth 1 https://huggingface.co/charent/ChatLM-Chinese-0.2B
+git clone --depth 1 https://huggingface.co/charent/ChatLM-mini-Chinese
 ```
 
-You can also manually download it directly from the `Hugging Face Hub` warehouse [ChatLM-mini-Chinese](https://huggingface.co/charent/ChatLM-Chinese-0.2B) and move the downloaded file to the `model_save` directory. .
+You can also manually download it directly from the `Hugging Face Hub` warehouse [ChatLM-mini-Chinese](https://huggingface.co/charent/ChatLM-mini-Chinese) and move the downloaded file to the `model_save` directory. .
     
 
 ## 3.3 Tokenizer training
