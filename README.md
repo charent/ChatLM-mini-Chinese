@@ -86,7 +86,7 @@ T5模型（Text-to-Text Transfer Transformer），详情见论文: [Exploring th
 
 模型源码来自huggingface，见：[T5ForConditionalGeneration](https://github.com/huggingface/transformers/blob/main/src/transformers/models/t5/modeling_t5.py#L1557)。
 
-模型配置见[model_config.json](https://huggingface.co/charent/ChatLM-Chinese-0.2B/blob/main/model_config.json)，官方的`T5-base`：`encoder layer`和`decoder layer `均为为12层，本项目这两个参数修改为10层。 
+模型配置见[model_config.json](https://huggingface.co/charent/ChatLM-mini-Chinese/blob/main/model_config.json)，官方的`T5-base`：`encoder layer`和`decoder layer `均为为12层，本项目这两个参数修改为10层。 
 
 模型参数：0.2B。词表大小：29298，仅包含中文和少量英文。
 
@@ -134,7 +134,7 @@ CPU: Intel(R) i5-13600k @ 5.1GHz
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import torch
 
-model_id = 'charent/ChatLM-Chinese-0.2B'
+model_id = 'charent/ChatLM-mini-Chinese'
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -196,12 +196,12 @@ conda install --yes --file ./requirements.txt
 从`Hugging Face Hub`下载模型权重及配置文件，需要先安装[Git LFS](https://docs.github.com/zh/repositories/working-with-files/managing-large-files/installing-git-large-file-storage)，然后运行: 
 
 ```bash 
-git clone --depth 1 https://huggingface.co/charent/ChatLM-Chinese-0.2B
+git clone --depth 1 https://huggingface.co/charent/ChatLM-mini-Chinese
 
 mv ChatLM-Chinese-0.2B model_save
 ```
 
-也可以直接从`Hugging Face Hub`仓库[ChatLM-Chinese-0.2B](https://huggingface.co/charent/ChatLM-Chinese-0.2B)手工下载，将下载的文件移动到`model_save`目录下即可。
+也可以直接从`Hugging Face Hub`仓库[ChatLM-Chinese-0.2B](https://huggingface.co/charent/ChatLM-mini-Chinese)手工下载，将下载的文件移动到`model_save`目录下即可。
 
 ## 3.3 Tokenizer训练
 
