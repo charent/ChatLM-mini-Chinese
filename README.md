@@ -86,7 +86,7 @@ T5模型（Text-to-Text Transfer Transformer），详情见论文: [Exploring th
 
 模型源码来自huggingface，见：[T5ForConditionalGeneration](https://github.com/huggingface/transformers/blob/main/src/transformers/models/t5/modeling_t5.py#L1557)。
 
-模型配置见[model_config.json](https://huggingface.co/charent/ChatLM-mini-Chinese/blob/main/model_config.json)，官方的`T5-base`：`encoder layer`和`decoder layer `均为为12层，本项目这两个参数修改为10层。 
+模型配置见[model_config.json](https://huggingface.co/charent/ChatLM-mini-Chinese/blob/main/config.json)，官方的`T5-base`：`encoder layer`和`decoder layer `均为为12层，本项目这两个参数修改为10层。 
 
 模型参数：0.2B。词表大小：29298，仅包含中文和少量英文。
 
