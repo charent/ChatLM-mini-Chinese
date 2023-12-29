@@ -1,5 +1,6 @@
 # coding=utf-8
-import time 
+import time
+import os 
 import pandas as pd 
 from dataclasses import dataclass
 
@@ -9,10 +10,12 @@ from transformers.generation.configuration_utils import GenerationConfig
 
 from model.chat_model import TextToTextModel
 from model.dataset import MyDataset
-from config import TrainConfig
-from utils.functions import json_to_dataclass
+from config import TrainConfig, T5ModelConfig
+from utils.functions import json_to_dataclass, get_T5_config
 
 tqdm.pandas()
+
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 @dataclass
 class My_DataCollatorForSeq2Seq(DataCollatorForSeq2Seq):
@@ -43,16 +46,14 @@ class My_DataCollatorForSeq2Seq(DataCollatorForSeq2Seq):
 
 def pre_train(config: TrainConfig) -> None:
 
-    # step 1. 加载模型配置文件
-    model_config_class = json_to_dataclass(config.model_config_file, 'ModelConfig')
-    model_config = model_config_class()
-
-    # step 2. 加载tokenizer
-    tokenizer = PreTrainedTokenizerFast.from_pretrained(config.tokenizer_dir)
+    # step 1. 加载tokenizer
+    tokenizer = PreTrainedTokenizerFast.from_pretrained(config.tokenizer_dir)\
+    
+    # step 2. 加载模型配置文件
+    t5_config = get_T5_config(T5ModelConfig(), vocab_size=len(tokenizer), decoder_start_token_id=tokenizer.pad_token_id, eos_token_id=tokenizer.eos_token_id)
     
     # step 3. 初始化模型
-    model = TextToTextModel(config=model_config, decoder_start_token_id=tokenizer.pad_token_id)
-    model = model.model
+    model = TextToTextModel(t5_config)
 
     # Step 4: Load my dataset
     dataset = MyDataset(

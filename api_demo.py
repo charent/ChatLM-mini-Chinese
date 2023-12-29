@@ -9,7 +9,6 @@ from pydantic import BaseModel
 
 from model.infer import ChatBot
 from config import InferConfig
-from utils.functions import fixed_space
 
 CONFIG = InferConfig()
 chat_bot = ChatBot(infer_config=CONFIG)
@@ -74,7 +73,7 @@ async def chat(post_data: ChatInput, authority: str = Depends(api_key_auth)) -> 
                             headers={"WWW-Authenticate": "Bearer"},
                         )
     
-    outs = fixed_space(chat_bot.chat(input_txt))
+    outs = chat_bot.chat(input_txt)
 
     if len(outs) == 0:
        outs = "我是一个参数很少的AI模型🥺，知识库较少，无法直接回答您的问题，换个问题试试吧👋"
