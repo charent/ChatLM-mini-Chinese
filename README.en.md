@@ -1,7 +1,11 @@
-# 0.2B small Chinese chat language model
+<div align="center">
+
+# A Small Chat with Chinese Language Model: ChatLM-Chinese-0.2B 
+ [中文](./README.md)  | English
+
+</div>
 
 # 1. 👋Introduction
-*阅读中文文档 [中文](README.md).*
 
 Today's large language models tend to have large parameters, and consumer-grade computers are slow to do simple inference, let alone train a model from scratch. The goal of this project is to organize the training process of generative language models, including data cleaning, tokenizer training, model pre-training, SFT instruction fine-tuning, RLHF optimization, etc.
 
@@ -159,6 +163,10 @@ Apple是一家专注于设计和用户体验的公司，其产品在设计上注
 ```
 
 ## 3.2 from clone code repository start
+
+The model of this project is the `TextToText` model. In the `prompt`, `response` and other fields of the pre-training stage, SFT stage, and RLFH stage, please be sure to add the `[EOS]` end-of-sentence mark.    
+The model of this project is the `TextToText` model. In the `prompt`, `response` and other fields of the pre-training stage, SFT stage, and RLFH stage, please be sure to add the `[EOS]` end-of-sentence mark.    
+The model of this project is the `TextToText` model. In the `prompt`, `response` and other fields of the pre-training stage, SFT stage, and RLFH stage, please be sure to add the `[EOS]` end-of-sentence mark.    
 
 ### 3.2.1 Clone repository
 ```bash

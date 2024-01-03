@@ -1,7 +1,13 @@
-# 中文对话0.2B小模型 ChatLM-Chinese-0.2B
+<div align="center">
+
+# 中文对话0.2B小模型 ChatLM-Chinese-0.2B  
+
+中文  | [English](./README.en.md)  
+
+</div>
+ 
 
 # 一、👋介绍 
-*Read this in [English](README.en.md).*
 现在的大语言模型的参数往往较大，消费级电脑单纯做推理都比较慢，更别说想自己从头开始训练一个模型了。本项目的目标是整理生成式语言模型的训练流程，包括数据清洗、tokenizer训练、模型预训练、SFT指令微调、RLHF优化等。 
 
 ChatLM-mini-Chinese为中文对话小模型，模型参数只有0.2B（算共享权重约210M），可以在最低4GB显存的机器进行预训练（`batch_size=1`，`fp16`或者` bf16`），`float16`加载、推理最少只需要512MB显存。 
@@ -164,6 +170,10 @@ Apple是一家专注于设计和用户体验的公司，其产品在设计上注
 ```
 
 ## 3.2 从克隆仓库代码开始
+
+本项目模型为`TextToText`模型，在预训练阶段、SFT阶段、RLFH阶段的`prompt`、`response`等字段，请务必加上`[EOS]`句子结束标记。    
+本项目模型为`TextToText`模型，在预训练阶段、SFT阶段、RLFH阶段的`prompt`、`response`等字段，请务必加上`[EOS]`句子结束标记。    
+本项目模型为`TextToText`模型，在预训练阶段、SFT阶段、RLFH阶段的`prompt`、`response`等字段，请务必加上`[EOS]`句子结束标记。    
 
 ### 3.2.1 克隆项目：
 ```bash
