@@ -57,7 +57,7 @@ class TextToTextModel(T5ForConditionalGeneration):
             generation_config.num_beams = 1
             generation_config.do_sample = True
             generation_config.top_k = 50
-            generation_config.temperature = 0.98   # 越低概率越趋向于均匀分布
+            generation_config.temperature = 0.98   # 越低，贫富差距越大，越高(>1)，越趋向于均匀分布
             generation_config.top_p = 0.80
             generation_config.no_repeat_ngram_size = 4
         elif search_type == 'contrastive':
