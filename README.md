@@ -17,7 +17,7 @@ ChatLM-mini-Chinese为中文对话小模型，模型参数只有0.2B（算共享
 - 使用`Huggingface`NLP框架，包括`transformers`、`accelerate`、`trl`、`peft`等。
 - 自实现`trainer`，支持单机单卡、单机多卡进行预训练、SFT微调。训练过程中支持在任意位置停止，及在任意位置继续训练。
 - 预训练：整合为端到端的`Text-to-Text`预训练，非`mask`掩码预测预训练。
-    - 开源所有数据清洗、数据集构造、数据集加载优化等流程；
+    - 开源所有数据清洗（如规范化、基于mini_hash的文档去重等）、数据集构造、数据集加载优化等流程；
     - tokenizer多进程词频统计，支持`sentencepiece`、`huggingface tokenizers`的tokenizer训练；
     - 预训练支持任意位置断点，可从断点处继续训练;
     - 大数据集（GB级别）流式加载、支持缓冲区数据打乱，不利用内存、硬盘作为缓存，有效减少内存、磁盘占用。配置`batch_size=1, max_len=320`下，最低支持在16GB内存+4GB显存的机器上进行预训练；
@@ -32,6 +32,12 @@ ChatLM-mini-Chinese为中文对话小模型，模型参数只有0.2B（算共享
 - 支持下游任务微调：[finetune_examples](./finetune_examples/info_extract/)给出**三元组信息抽取任务**的微调示例，微调后的模型对话能力仍在。
 
 🟢**最近更新**
+
+<details close> 
+<summary>  <b>2024-01-07</b> </summary>
+- 添加数据清洗过程中基于mini hash实现的文档去重（在本项目中其实数据集的样本去重），防止模型遇到多次重复数据后，在推理时吐出训练数据。<br/>
+- 添加`DropDatasetDuplicate`类实现对大数据集的文档去重。<br/>
+</details>
 
 <details close> 
 <summary>  <b>2023-12-29</b> </summary>
