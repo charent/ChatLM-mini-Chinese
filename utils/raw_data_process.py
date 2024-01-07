@@ -21,7 +21,7 @@ sys.path.extend(['.','..'])
 
 from logger import Logger
 from config import PROJECT_ROOT
-from utils.functions import get_path_of_suffix_files
+from utils.functions import get_path_of_suffix_files, DropDatasetDuplicate
 
 log = Logger('data_process', save2file=True, file_name=PROJECT_ROOT + '/logs/raw_data_process.log')
 
@@ -765,6 +765,60 @@ def merge_dataset_as_single_file(groups_cnt: int=50000, max_len: int=512, min_le
 
     log.info("merge into file: {}, 全部数据共{}行，清洗后剩余{}行".format(save_file, all_cnt, keep_cnt), save_to_file=True)
 
+
+def remove_dataset_duplicate_rows(groups_cnt: int=50000) -> None:
+    '''
+    使用mini_hash删除数据集中重复的部分
+    '''
+    from_parquet_files = PROJECT_ROOT + '/data/my_dataset.parquet'
+
+    save_file = PROJECT_ROOT + '/data/my_dataset_no_dulpticates.parquet'
+
+    # 后续append写入，存在文件先删除
+    if exists(save_file): 
+        assert delete_file(save_file)
+
+    cur_rows = []
+    all_cnt, keep_cnt = 0, 0
+    row_index = -1
+    drop_dataset_duplicate = DropDatasetDuplicate(threshold=0.85, num_perm=256)
+    
+    parquet_table = pq.read_table(from_parquet_files)
+    all_cnt = parquet_table.num_rows
+
+    # 先顺序遍历获取哪些行是重复的
+    for prompt, response in progress.track(zip(parquet_table['prompt'], parquet_table['response']), total=parquet_table.num_rows):
+        row_index += 1
+
+        doc = f"{prompt.as_py()}{response.as_py()}"
+        drop_dataset_duplicate.add_doc(index=row_index, doc=doc)
+
+    row_index = -1
+    need_to_drop_indexs = drop_dataset_duplicate.get_duplicate_indexs()
+
+    # 再顺序遍历一遍，重复的行不添加到新的数据集
+    for prompt, response in progress.track(zip(parquet_table['prompt'], parquet_table['response']), total=parquet_table.num_rows):
+        row_index += 1  # 不管有没有跳过行, row_index都必须+1
+
+        # 重复的行跳过
+        if row_index in need_to_drop_indexs:
+            continue
+
+        cur_rows.append({'prompt': prompt.as_py() , 'response': response.as_py()})
+        keep_cnt += 1
+
+        if len(cur_rows) >= groups_cnt:
+            df = pd.DataFrame(cur_rows)
+            write_single_parquet_file(save_file, df)
+            cur_rows = []
+
+    # 处理末尾部分
+    if len(cur_rows) > 0:
+        df = pd.DataFrame(cur_rows)
+        write_single_parquet_file(save_file, df)
+
+    log.info("merge into file: {}, 全部数据共{}行，文档去重后剩余{}行".format(save_file, all_cnt, keep_cnt), save_to_file=True)
+
 def shuffle_parquet_dataset(parquet_file: str, shuffle_file: str, seed: int=23333, groups_cnt: int=65536) -> None:
     '''
     打乱一个parquet文件数据集
@@ -1128,6 +1182,9 @@ if __name__ == '__main__':
 
     # merge
     # merge_dataset_as_single_file(groups_cnt=50000, min_len=3, max_len=512, cut_max_len=True)
+        
+    
+    remove_dataset_duplicate_rows(groups_cnt=50000)
 
     # # shuffle
     # shuffle_parquet_dataset(

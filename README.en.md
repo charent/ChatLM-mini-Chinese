@@ -15,7 +15,7 @@ ChatLM-mini-Chinese is a small Chinese chat model with only 0.2B (added shared w
 - Use the `Huggingface` NLP framework, including `transformers`, `accelerate`, `trl`, `peft`, etc.
 - Self-implemented `trainer`, supporting pre-training and SFT fine-tuning on a single machine with a single card or with multiple cards on a single machine. It supports stopping at any position during training and continuing training at any position.
 - Pre-training: Integrated into end-to-end `Text-to-Text` pre-training, non-`mask` mask prediction pre-training.
-     - Open source all data cleaning, dataset construction, dataset loading optimization and other processes;
+     - Open source all data cleaning (such as standardization, document deduplication based on mini_hash, etc.), data set construction, data set loading optimization and other processes;
      - tokenizer multi-process word frequency statistics, supports tokenizer training of `sentencepiece` and `huggingface tokenizers`;
      - Pre-training supports checkpoint at any step, and training can be continued from the breakpoint;
      - Streaming loading of large datasets (GB level), supporting buffer data shuffling, does not use memory or hard disk as cache, effectively reducing memory and disk usage. configuring `batch_size=1, max_len=320`, supporting pre-training on a machine with at least 16GB RAM + 4GB GPU memory;
@@ -30,6 +30,11 @@ ChatLM-mini-Chinese is a small Chinese chat model with only 0.2B (added shared w
 - Support downstream task fine-tuning: [finetune_examples](./finetune_examples/info_extract/) gives a fine-tuning example of the **Triple Information Extraction Task**. The model dialogue capability after fine-tuning is still there.
 
 🟢**Latest Update**
+
+<summary> <b>2024-01-07</b> </summary>
+- Add document deduplication based on mini hash during the data cleaning process (in this project, the samples of the data set are actually deduplicated). Prevent the model from spitting out training data during inference after encountering multiple repeated data. <br/>
+- Add the `DropDatasetDuplicate` class to implement deduplication of documents from large data sets. <br/>
+</details>
 
 <details close>
 <summary> <b>2023-12-29</b> </summary>
