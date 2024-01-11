@@ -35,7 +35,7 @@ ChatLM-mini-Chinese为中文对话小模型，模型参数只有0.2B（算共享
 
 <details close> 
 <summary>  <b>2024-01-07</b> </summary>
-- 添加数据清洗过程中基于mini hash实现的文档去重（在本项目中其实数据集的样本去重），防止模型遇到多次重复数据后，在推理时吐出训练数据。<br/>
+- 添加数据清洗过程中基于mini hash实现的文档去重（在本项目中其实是数据集的样本去重），防止模型遇到多次重复数据后，在推理时吐出训练数据。<br/>
 - 添加`DropDatasetDuplicate`类实现对大数据集的文档去重。<br/>
 </details>
 
