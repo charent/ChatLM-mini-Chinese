@@ -12,7 +12,7 @@ class InferConfig:
     mixed_precision: str = "bf16"                   # 混合精度 ''no','fp16','bf16' or 'fp8'
 
     # 全量DPO模型文件
-    model_dir: str = PROJECT_ROOT + '/model_save/dpo_model/'
+    model_dir: str = PROJECT_ROOT + '/model_save/'
 
     # lora PDO 合并后的模型文件
     # model_file: str = PROJECT_ROOT + '/model_save/chat_small_t5.best.dpo.lora_merged.bin'
