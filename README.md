@@ -344,15 +344,15 @@ python dpo_train.py
 ```
 
 ## 3.7 推理 
-确保`model_save`目录下有以下文件：
+确保`model_save`目录下有以下文件，这些文件都可以在`Hugging Face Hub`仓库[ChatLM-Chinese-0.2B](https://huggingface.co/charent/ChatLM-mini-Chinese)中找到：
 ```bash
 ChatLM-mini-Chinese
 ├─model_save
-|  ├─chat_model.py
-|  ├─chat_model_config.py
 |  ├─config.json
+|  ├─configuration_chat_model.py
 |  ├─generation_config.json
 |  ├─model.safetensors
+|  ├─modeling_chat_model.py
 |  ├─special_tokens_map.json
 |  ├─tokenizer.json
 |  └─tokenizer_config.json

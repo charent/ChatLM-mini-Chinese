@@ -32,7 +32,7 @@ ChatLM-mini-Chinese is a small Chinese chat model with only 0.2B (added shared w
 🟢**Latest Update**
 
 <summary> <b>2024-01-07</b> </summary>
-- Add document deduplication based on mini hash during the data cleaning process (in this project, the samples of the data set are actually deduplicated). Prevent the model from spitting out training data during inference after encountering multiple repeated data. <br/>
+- Add document deduplication based on mini hash during the data cleaning process (in this project, it's to deduplicated the rows of datasets actually). Prevent the model from spitting out training data during inference after encountering multiple repeated data. <br/>
 - Add the `DropDatasetDuplicate` class to implement deduplication of documents from large data sets. <br/>
 </details>
 
@@ -334,15 +334,15 @@ pythondpo_train.py
 ```
 
 ## 3.7 Infering
-Make sure there are the following files in the `model_save` directory:
+Make sure there are the following files in the `model_save` directory, These files can be found in the `Hugging Face Hub` repository [ChatLM-Chinese-0.2B](https://huggingface.co/charent/ChatLM-mini-Chinese)::
 ```bash
 ChatLM-mini-Chinese
 ├─model_save
-|  ├─chat_model.py
-|  ├─chat_model_config.py
 |  ├─config.json
+|  ├─configuration_chat_model.py
 |  ├─generation_config.json
 |  ├─model.safetensors
+|  ├─modeling_chat_model.py
 |  ├─special_tokens_map.json
 |  ├─tokenizer.json
 |  └─tokenizer_config.json
