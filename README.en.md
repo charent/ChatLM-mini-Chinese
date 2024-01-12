@@ -29,6 +29,8 @@ ChatLM-mini-Chinese is a small Chinese chat model with only 0.2B (added shared w
      - Supports model merging, `Lora adapter` can be merged into the original model.
 - Support downstream task fine-tuning: [finetune_examples](./finetune_examples/info_extract/) gives a fine-tuning example of the **Triple Information Extraction Task**. The model dialogue capability after fine-tuning is still there.
 
+If you need to do retrieval augmented generation (RAG) based on small models, you can refer to my other project [Phi2-mini-Chinese](https://github.com/charent/Phi2-mini-Chinese). For the code, see [rag_with_langchain.ipynb](https://github.com/charent/Phi2-mini-Chinese/blob/main/rag_with_langchain.ipynb)
+
 🟢**Latest Update**
 
 <summary> <b>2024-01-07</b> </summary>

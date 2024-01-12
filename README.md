@@ -31,6 +31,8 @@ ChatLM-mini-Chinese为中文对话小模型，模型参数只有0.2B（算共享
     - 支持模型合并，可将`Lora adapter`合并到原始模型中。
 - 支持下游任务微调：[finetune_examples](./finetune_examples/info_extract/)给出**三元组信息抽取任务**的微调示例，微调后的模型对话能力仍在。
 
+如果需要做基于小模型的检索增强生成（RAG），可以参考我的另一个项目[Phi2-mini-Chinese](https://github.com/charent/Phi2-mini-Chinese)，代码见[rag_with_langchain.ipynb](https://github.com/charent/Phi2-mini-Chinese/blob/main/rag_with_langchain.ipynb)
+
 🟢**最近更新**
 
 <details close> 
