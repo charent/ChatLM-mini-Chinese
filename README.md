@@ -216,7 +216,7 @@ conda install --yes --file ./requirements.txt
 ```bash 
 git clone --depth 1 https://huggingface.co/charent/ChatLM-mini-Chinese
 
-mv ChatLM-Chinese-0.2B model_save
+mv ChatLM-mini-Chinese model_save
 ```
 
 也可以直接从`Hugging Face Hub`仓库[ChatLM-Chinese-0.2B](https://huggingface.co/charent/ChatLM-mini-Chinese)手工下载，将下载的文件移动到`model_save`目录下即可。
@@ -256,10 +256,10 @@ for word in words_dict.keys():
 
 3. 控制台： 
 
-   控制台训练需要考虑连接断开后进程被杀的，推荐使用进程守护工具`Supervisor`或者`screen`建立连接会话。
+    控制台训练需要考虑连接断开后进程被杀的，推荐使用进程守护工具`Supervisor`或者`screen`建立连接会话。
 
     首先要配置`accelerate`，执行以下命令， 根据提示选择即可，参考`accelerate.yaml`，*注意：DeepSpeed在Windows安装比较麻烦*。
-    ``` bash
+    ```bash
     accelerate config
     ```
 
@@ -268,7 +268,7 @@ for word in words_dict.keys():
     *预训练有两个脚本，本项目实现的trainer对应`train.py`，huggingface实现的trainer对应`pre_train.py`，用哪个都可以，效果一致。本项目实现的trainer训练信息展示更美观、更容易修改训练细节（如损失函数，日志记录等），均支持断点继续训练，本项目实现的trainer支持在任意位置断点后继续训练，按`ctrl+c`退出脚本时会保存断点信息。* 
 
     单机单卡：
-    ``` bash
+    ```bash
     # 本项目实现的trainer
     accelerate launch ./train.py train
 
@@ -277,22 +277,23 @@ for word in words_dict.keys():
     ```
 
     单机多卡：
-    ``` bash
+    `2`为显卡数量，请根据自己的实际情况修改。
+    ```bash
     # 本项目实现的trainer
     accelerate launch --multi_gpu --num_processes 2 ./train.py train
 
     # 或者使用 huggingface trainer
-    python pre_train.py
+    accelerate launch --multi_gpu --num_processes 2 pre_train.py
     ```
 
     从断点处继续训练：
-    ```
+    ```bash
     # 本项目实现的trainer
     accelerate launch --multi_gpu --num_processes 2 ./train.py train --is_keep_training=True
 
     # 或者使用 huggingface trainer
     # 需要在`pre_train.py`中的`train`函数添加`resume_from_checkpoint=True`
-    python pre_train.py
+    accelerate launch --multi_gpu --num_processes 2 pre_train.py
     ```
 
 ## 3.5 SFT微调 
@@ -313,7 +314,7 @@ sft指令微调数据集示例：
 # 本项目实现的trainer， 添加参数`--is_finetune=True`即可, 参数`--is_keep_training=True`可从任意断点处继续训练
 accelerate launch --multi_gpu --num_processes 2 ./train.py --is_finetune=True
 
-# 或者使用 huggingface trainer
+# 或者使用 huggingface trainer, 多GPU请用accelerate launch --multi_gpu --num_processes gpu个数 sft_train.py
 python sft_train.py
 ```
 
@@ -342,6 +343,7 @@ DPO偏好优化数据集示例：
 
 运行偏好优化：
 ``` bash
+#  多GPU请用accelerate launch --multi_gpu --num_processes gpu个数 dpo_train.py
 python dpo_train.py
 ```
 
