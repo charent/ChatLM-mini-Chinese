@@ -206,6 +206,8 @@ Download model weights and configuration files from `Hugging Face Hub`, you need
 
 ```bash
 git clone --depth 1 https://huggingface.co/charent/ChatLM-mini-Chinese
+
+mv ChatLM-mini-Chinese model_save
 ```
 
 You can also manually download it directly from the `Hugging Face Hub` warehouse [ChatLM-mini-Chinese](https://huggingface.co/charent/ChatLM-mini-Chinese) and move the downloaded file to the `model_save` directory. .
@@ -263,20 +265,21 @@ This project also provides an example of using the `tokenizer` that comes with t
      accelerate launch ./train.py train
 
      # Or use huggingface trainer
-     python pre_train.py
+    accelerate launch --multi_gpu --num_processes 2 pre_train.py
      ```
 
-     Single machine with multiple cards:
+     Single machine with multiple GPUs:
+     '2' is the number of gpus, please modify it according to your actual situation.
      ```bash
      # The trainer implemented in this project
      accelerate launch --multi_gpu --num_processes 2 ./train.py train
 
      # Or use huggingface trainer
-     python pre_train.py
+    accelerate launch --multi_gpu --num_processes 2 pre_train.py
      ```
 
      Continue training from the breakpoint:
-     ```
+     ```bash
      # The trainer implemented in this project
      accelerate launch --multi_gpu --num_processes 2 ./train.py train --is_keep_training=True
 

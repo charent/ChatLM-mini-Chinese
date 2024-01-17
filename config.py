@@ -31,7 +31,7 @@ class InferConfig:
 @dataclass
 class DpoConfig:
     max_seq_len: int = 512 + 8                  # 8 for eos token 
-    sft_model_file: str = PROJECT_ROOT + '/model_save/sft'
+    sft_model_file: str = PROJECT_ROOT + '/model_save/'
 
     tokenizer_dir: str = PROJECT_ROOT + '/model_save/tokenizer'
 
@@ -61,7 +61,7 @@ class DpoConfig:
 class SFTconfig:
     max_seq_len: int = 384 + 8                # 8 for eos token 
 
-    finetune_from_ckp_file = PROJECT_ROOT + '/model_save/pretrain'
+    finetune_from_ckp_file = PROJECT_ROOT + '/model_save/'
 
     tokenizer_dir: str = PROJECT_ROOT + '/model_save/tokenizer'
     sft_train_file: str = PROJECT_ROOT + '/data/sft_train.json'
