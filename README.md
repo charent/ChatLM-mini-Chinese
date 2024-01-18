@@ -211,9 +211,10 @@ conda install --yes --file ./requirements.txt
 
 ### 3.2.3 下载预训练模型及模型配置文件
 
-从`Hugging Face Hub`下载模型权重及配置文件，需要先安装[Git LFS](https://docs.github.com/zh/repositories/working-with-files/managing-large-files/installing-git-large-file-storage)，然后运行: 
+用`git`命令从`Hugging Face Hub`下载模型权重及配置文件，需要先安装[Git LFS](https://docs.github.com/zh/repositories/working-with-files/managing-large-files/installing-git-large-file-storage)，然后运行: 
 
 ```bash 
+# 使用git命令下载huggingface模型，先安装[Git LFS]，否则下载的模型文件不可用
 git clone --depth 1 https://huggingface.co/charent/ChatLM-mini-Chinese
 
 mv ChatLM-mini-Chinese model_save

@@ -202,9 +202,10 @@ conda install --yes --file ./requirements.txt
 
 ### 3.2.3 Download the pre-trained model and model configuration file
 
-Download model weights and configuration files from `Hugging Face Hub`, you need to install [Git LFS](https://docs.github.com/zh/repositories/working-with-files/managing-large-files/installing-git-large -file-storage), then run:
+Download model weights and configuration files from `Hugging Face Hub` with `git` command, you need to install [Git LFS](https://docs.github.com/zh/repositories/working-with-files/managing-large-files/installing-git-large -file-storage), then run:
 
 ```bash
+# Use the git command to download the huggingface model. Install [Git LFS] first, otherwise the downloaded model file will not be available.
 git clone --depth 1 https://huggingface.co/charent/ChatLM-mini-Chinese
 
 mv ChatLM-mini-Chinese model_save
