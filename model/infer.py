@@ -7,8 +7,7 @@ import torch
 from transformers import TextIteratorStreamer,PreTrainedTokenizerFast
 from safetensors.torch import load_model
 
-from accelerate import init_empty_weights, dispatch_model,load_checkpoint_in_model, load_checkpoint_and_dispatch
-from accelerate.utils import BnbQuantizationConfig, load_and_quantize_model
+from accelerate import init_empty_weights, load_checkpoint_and_dispatch
 
 # import 自定义类和函数
 from model.chat_model import TextToTextModel
@@ -33,56 +32,33 @@ class ChatBot:
         with init_empty_weights():
             empty_model = TextToTextModel(t5_config)
 
-        if torch.cuda.device_count() >= 2 and platform.system().lower() == 'linux':
-            # 量化配置
-            bnb_quantization_config = BnbQuantizationConfig(
-                load_in_4bit=True, 
-                bnb_4bit_compute_dtype=torch.bfloat16,
-                bnb_4bit_use_double_quant=True, 
-                bnb_4bit_quant_type="nf4"
-                )
-            
-            # 加载模型
-            model = load_and_quantize_model(
-                    model=empty_model, 
-                    weights_location=infer_config.model_dir, 
-                    bnb_quantization_config=bnb_quantization_config, 
-                )
-            
-            # 多GPU分发
-            self.model = dispatch_model(
-                model=model,
-                device_map='auto'
-            )   
-                
-        else:
-            try:
-                self.model = load_checkpoint_and_dispatch(
-                    model=empty_model,
-                    checkpoint=infer_config.model_dir,
-                    device_map='auto',
-                    dtype=torch.float16,
-                )
-            except Exception as e:
-                # print(str(e), '`accelerate` load fail, try another load function.')
-                model = TextToTextModel(t5_config)
+        try:
+            self.model = load_checkpoint_and_dispatch(
+                model=empty_model,
+                checkpoint=infer_config.model_dir,
+                device_map='auto',
+                dtype=torch.float16,
+            )
+        except Exception as e:
+            # print(str(e), '`accelerate` load fail, try another load function.')
+            model = TextToTextModel(t5_config)
 
-                if  os.path.isdir(infer_config.model_dir):
+            if os.path.isdir(infer_config.model_dir):
 
-                    # from_pretrained
-                    model = model.from_pretrained(infer_config.model_dir)
+                # from_pretrained
+                model = model.from_pretrained(infer_config.model_dir)
 
-                elif infer_config.model_dir.endswith('.safetensors'):
+            elif infer_config.model_dir.endswith('.safetensors'):
 
-                    # load safetensors
-                    load_model(model, infer_config.model_dir) 
+                # load safetensors
+                load_model(model, infer_config.model_dir) 
 
-                else:
+            else:
 
-                    # load torch checkpoint
-                    model.load_state_dict(torch.load(infer_config.model_dir))  
+                # load torch checkpoint
+                model.load_state_dict(torch.load(infer_config.model_dir))  
 
-                self.model = model
+            self.model = model
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model.to(self.device)
