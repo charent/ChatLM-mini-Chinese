@@ -28,19 +28,8 @@ class ChatBot:
         self.batch_encode_plus = tokenizer.batch_encode_plus
         
         t5_config = get_T5_config(T5ModelConfig(), vocab_size=len(tokenizer), decoder_start_token_id=tokenizer.pad_token_id, eos_token_id=tokenizer.eos_token_id)
-        empty_model = None
-        with init_empty_weights():
-            empty_model = TextToTextModel(t5_config)
 
         try:
-            self.model = load_checkpoint_and_dispatch(
-                model=empty_model,
-                checkpoint=infer_config.model_dir,
-                device_map='auto',
-                dtype=torch.float16,
-            )
-        except Exception as e:
-            # print(str(e), '`accelerate` load fail, try another load function.')
             model = TextToTextModel(t5_config)
 
             if os.path.isdir(infer_config.model_dir):
@@ -59,6 +48,21 @@ class ChatBot:
                 model.load_state_dict(torch.load(infer_config.model_dir))  
 
             self.model = model
+
+        except Exception as e:
+            print(str(e), 'transformers and pytorch load fail, try accelerate load function.')
+
+            empty_model = None
+            with init_empty_weights():
+                empty_model = TextToTextModel(t5_config)
+                
+            self.model = load_checkpoint_and_dispatch(
+                    model=empty_model,
+                    checkpoint=infer_config.model_dir,
+                    device_map='auto',
+                    dtype=torch.float16,
+                )
+       
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model.to(self.device)
