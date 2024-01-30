@@ -8,7 +8,7 @@
  
 
 # 一、👋介绍 
-现在的大语言模型的参数往往较大，消费级电脑单纯做推理都比较慢，更别说想自己从头开始训练一个模型了。本项目的目标是整理生成式语言模型的训练流程，包括数据清洗、tokenizer训练、模型预训练、SFT指令微调、RLHF优化等。 
+现在的大语言模型的参数往往较大，消费级电脑单纯做推理都比较慢，更别说想自己从头开始训练一个模型了。本项目的目标是从0开始训练一个生成式语言模型，包括数据清洗、tokenizer训练、模型预训练、SFT指令微调、RLHF优化等。 
 
 ChatLM-mini-Chinese为中文对话小模型，模型参数只有0.2B（算共享权重约210M），可以在最低4GB显存的机器进行预训练（`batch_size=1`，`fp16`或者` bf16`），`float16`加载、推理最少只需要512MB显存。 
 
@@ -26,7 +26,7 @@ ChatLM-mini-Chinese为中文对话小模型，模型参数只有0.2B（算共享
     - 自实现`trainer`支持prompt指令微调， 支持任意断点继续训练；
     - 支持`Huggingface trainer`的`sequence to sequence`微调；
     - 支持传统的低学习率，只训练decoder层的微调。
-- 偏好优化：使用DPO进行全量偏好优化。
+- RLHF偏好优化：使用DPO进行全量偏好优化。
     - 支持使用`peft lora`进行偏好优化；
     - 支持模型合并，可将`Lora adapter`合并到原始模型中。
 - 支持下游任务微调：[finetune_examples](./finetune_examples/info_extract/)给出**三元组信息抽取任务**的微调示例，微调后的模型对话能力仍在。
@@ -34,6 +34,11 @@ ChatLM-mini-Chinese为中文对话小模型，模型参数只有0.2B（算共享
 如果需要做基于小模型的检索增强生成（RAG），可以参考我的另一个项目[Phi2-mini-Chinese](https://github.com/charent/Phi2-mini-Chinese)，代码见[rag_with_langchain.ipynb](https://github.com/charent/Phi2-mini-Chinese/blob/main/rag_with_langchain.ipynb)
 
 🟢**最近更新**
+
+<details open> 
+<summary>  <b>2024-01-30</b> </summary>
+- 模型文件更新到魔搭modelscope，可以通过`snapshot_download`快速下载。<br/>
+</details>
 
 <details close> 
 <summary>  <b>2024-01-07</b> </summary>
@@ -127,7 +132,7 @@ CPU: Intel(R) i5-13600k @ 5.1GHz
    
 ![finetune loss](img/sft_loss.png) 
 
-4. **dpo直接偏好优化**：数据集[alpaca-gpt4-data-zh](https://huggingface.co/datasets/c-s-ale/alpaca-gpt4-data-zh)作为`chosen`文本，步骤`2`中SFT模型对数据集中的prompt做批量`generate`，得到`rejected`文本，耗时1天，dpo全量偏好优化，学习率`le-5`，半精度`fp16`,共`2`个`epoch`，耗时3h。dpo损失： 
+4. **dpo直接偏好优化（RLHF）**：数据集[alpaca-gpt4-data-zh](https://huggingface.co/datasets/c-s-ale/alpaca-gpt4-data-zh)作为`chosen`文本，步骤`2`中SFT模型对数据集中的prompt做批量`generate`，得到`rejected`文本，耗时1天，dpo全量偏好优化，学习率`le-5`，半精度`fp16`,共`2`个`epoch`，耗时3h。dpo损失： 
  
 ![dpo loss](img/dpo_loss.png) 
 
@@ -144,11 +149,17 @@ CPU: Intel(R) i5-13600k @ 5.1GHz
 # 三、📑使用说明
 
 ## 3.1 快速开始：
+如果无法连接huggingface，请使用`modelscope.snapshot_download`从modelscope下载模型文件。
 ```python
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import torch
 
 model_id = 'charent/ChatLM-mini-Chinese'
+
+# 如果无法连接huggingface，打开以下两行代码的注释，将从modelscope下载模型文件，模型文件保存到'./model_save'目录
+# from modelscope import snapshot_download
+# model_id = snapshot_download(model_id, cache_dir='./model_save')
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -179,9 +190,9 @@ Apple是一家专注于设计和用户体验的公司，其产品在设计上注
 
 ## 3.2 从克隆仓库代码开始
 
-本项目模型为`TextToText`模型，在预训练阶段、SFT阶段、RLFH阶段的`prompt`、`response`等字段，请务必加上`[EOS]`句子结束标记。    
-本项目模型为`TextToText`模型，在预训练阶段、SFT阶段、RLFH阶段的`prompt`、`response`等字段，请务必加上`[EOS]`句子结束标记。    
-本项目模型为`TextToText`模型，在预训练阶段、SFT阶段、RLFH阶段的`prompt`、`response`等字段，请务必加上`[EOS]`句子结束标记。    
+> [!CAUTION]
+> 本项目模型为`TextToText`模型，在预训练、SFT、RLFH阶段的`prompt`、`response`等字段，请务必加上`[EOS]`序列结束标记。   
+
 
 ### 3.2.1 克隆项目：
 ```bash
@@ -216,6 +227,9 @@ conda install --yes --file ./requirements.txt
 ```bash 
 # 使用git命令下载huggingface模型，先安装[Git LFS]，否则下载的模型文件不可用
 git clone --depth 1 https://huggingface.co/charent/ChatLM-mini-Chinese
+
+# 如果无法连接huggingface，请从modelscope下载
+git clone --depth 1 https://www.modelscope.cn/charent/ChatLM-mini-Chinese.git
 
 mv ChatLM-mini-Chinese model_save
 ```

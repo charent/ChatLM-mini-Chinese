@@ -30,7 +30,6 @@ def get_dataset(file: str, split: str, encode_fn: callable, encode_args: dict,  
         response = encode_fn(sample['response'] + '[EOS]', **encode_args)
         return {
             'input_ids': prompt.input_ids,
-            'input_mask': prompt.attention_mask,
             'labels': response.input_ids,
         }
 

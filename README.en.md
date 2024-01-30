@@ -7,7 +7,7 @@
 
 # 1. 👋Introduction
 
-Today's large language models tend to have large parameters, and consumer-grade computers are slow to do simple inference, let alone train a model from scratch. The goal of this project is to organize the training process of generative language models, including data cleaning, tokenizer training, model pre-training, SFT instruction fine-tuning, RLHF optimization, etc.
+Today's large language models tend to have large parameters, and consumer-grade computers are slow to do simple inference, let alone train a model from scratch. The goal of this project is to train a generative language models from scratch, including data cleaning, tokenizer training, model pre-training, SFT instruction fine-tuning, RLHF optimization, etc.
 
 ChatLM-mini-Chinese is a small Chinese chat model with only 0.2B (added shared weight is about 210M) parameters. It can be pre-trained on  machine with a minimum of 4GB of GPU memory (`batch_size=1`, `fp16` or `bf16`), `float16` loading and inference only require a minimum of 512MB of GPU memory.
 
@@ -24,7 +24,7 @@ ChatLM-mini-Chinese is a small Chinese chat model with only 0.2B (added shared w
      - The self-implemented `trainer` supports prompt command fine-tuning and supports any breakpoint to continue training;
      - Support `sequence to sequence` fine-tuning of `Huggingface trainer`;
      - Supports traditional low learning rate and only trains fine-tuning of the decoder layer.
-- Preference optimization: Use DPO to optimize all preferences.
+- RLHF Preference optimization: Use DPO to optimize all preferences.
      - Support using `peft lora` for preference optimization;
      - Supports model merging, `Lora adapter` can be merged into the original model.
 - Support downstream task fine-tuning: [finetune_examples](./finetune_examples/info_extract/) gives a fine-tuning example of the **Triple Information Extraction Task**. The model dialogue capability after fine-tuning is still there.
@@ -33,6 +33,12 @@ If you need to do retrieval augmented generation (RAG) based on small models, yo
 
 🟢**Latest Update**
 
+<details open>
+<summary> <b>2024-01-30</b> </summary>
+- The model files are updated to Moda modelscope and can be quickly downloaded through `snapshot_download`. <br/>
+</details>
+
+<details close>
 <summary> <b>2024-01-07</b> </summary>
 - Add document deduplication based on mini hash during the data cleaning process (in this project, it's to deduplicated the rows of datasets actually). Prevent the model from spitting out training data during inference after encountering multiple repeated data. <br/>
 - Add the `DropDatasetDuplicate` class to implement deduplication of documents from large data sets. <br/>
@@ -121,7 +127,7 @@ GPU: NVIDIA GeForce RTX 4060 Ti 16GB * 1
 3. **prompt supervised fine-tuning (SFT)**: Use the `belle` instruction training dataset (both instruction and answer lengths are below 512), with a dynamic learning rate from `1e-7` to `5e-5` , the fine-tuning time is 2 days. Fine-tuning loss:
 ![finetune loss](img/sft_loss.png)
 
-4. **dpo direct preference optimization**: dataset [alpaca-gpt4-data-zh](https://huggingface.co/datasets/c-s-ale/alpaca-gpt4-data-zh) as `chosen` text , in step `2`, the SFT model performs batch `generate` on the prompts in the dataset, and obtains the `rejected` text, which takes 1 day, dpo full preference optimization, learning rate `le-5`, half precision `fp16`, total `2` `epoch`, taking 3h. dpo loss:
+4. **dpo direct preference optimization（RLHF）**: dataset [alpaca-gpt4-data-zh](https://huggingface.co/datasets/c-s-ale/alpaca-gpt4-data-zh) as `chosen` text , in step `2`, the SFT model performs batch `generate` on the prompts in the dataset, and obtains the `rejected` text, which takes 1 day, dpo full preference optimization, learning rate `le-5`, half precision `fp16`, total `2` `epoch`, taking 3h. dpo loss:
 ![dpo loss](img/dpo_loss.png)
 
 ## 2.4 chat show
@@ -142,6 +148,10 @@ import torch
 
 model_id = 'charent/ChatLM-mini-Chinese'
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+# 如果无法连接huggingface，打开以下两行代码的注释，将从modelscope下载模型文件，模型文件保存到'./model_save'目录
+# from modelscope import snapshot_download
+# model_id = snapshot_download(model_id, cache_dir='./model_save')
 
 tokenizer = AutoTokenizer.from_pretrained(model_id)
 model = AutoModelForSeq2SeqLM.from_pretrained(model_id, trust_remote_code=True).to(device)
@@ -170,10 +180,8 @@ Apple是一家专注于设计和用户体验的公司，其产品在设计上注
 ```
 
 ## 3.2 from clone code repository start
-
-The model of this project is the `TextToText` model. In the `prompt`, `response` and other fields of the pre-training stage, SFT stage, and RLFH stage, please be sure to add the `[EOS]` end-of-sentence mark.    
-The model of this project is the `TextToText` model. In the `prompt`, `response` and other fields of the pre-training stage, SFT stage, and RLFH stage, please be sure to add the `[EOS]` end-of-sentence mark.    
-The model of this project is the `TextToText` model. In the `prompt`, `response` and other fields of the pre-training stage, SFT stage, and RLFH stage, please be sure to add the `[EOS]` end-of-sentence mark.    
+> [!CAUTION]
+> The model of this project is the `TextToText` model. In the `prompt`, `response` and other fields of the pre-training stage, SFT stage, and RLFH stage, please be sure to add the `[EOS]` end-of-sequence mark.    
 
 ### 3.2.1 Clone repository
 ```bash
@@ -207,6 +215,9 @@ Download model weights and configuration files from `Hugging Face Hub` with `git
 ```bash
 # Use the git command to download the huggingface model. Install [Git LFS] first, otherwise the downloaded model file will not be available.
 git clone --depth 1 https://huggingface.co/charent/ChatLM-mini-Chinese
+
+# If unable to connect huggingface, please download from modelscope
+git clone --depth 1 https://www.modelscope.cn/charent/ChatLM-mini-Chinese.git
 
 mv ChatLM-mini-Chinese model_save
 ```

@@ -7,6 +7,7 @@ fastparquet==2023.10.1
 fire==0.5.0
 jieba==0.42.1
 matplotlib==3.8.2
+modelscope==1.11.1
 nltk==3.8.1
 numpy==1.26.2
 opencc_python_reimplemented==0.1.7
