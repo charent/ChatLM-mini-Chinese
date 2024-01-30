@@ -81,21 +81,21 @@ class Logger(object):
 
     def debug(self, message: str, std_out: bool=True, save_to_file: bool=False) -> None:
         if std_out:
-            self.stdout_logger.info(message)
+            self.stdout_logger.debug(message)
         if save_to_file:
-            self.file_logger.info(message)
+            self.file_logger.debug(message)
 
-    def warnning(self, message: str, std_out: bool=True, save_to_file: bool=False) -> None:
+    def warning(self, message: str, std_out: bool=True, save_to_file: bool=False) -> None:
         if std_out:
-            self.stdout_logger.info(message)
+            self.stdout_logger.warning(message)
         if save_to_file:
-            self.file_logger.info(message)
+            self.file_logger.warning(message)
 
     def error(self, message: str, std_out: bool=True, save_to_file: bool=False) -> None:
         if std_out:
-            self.stdout_logger.info(message)
+            self.stdout_logger.error(message)
         if save_to_file:
-            self.file_logger.info(message)
+            self.file_logger.error(message)
 
 if __name__ == "__main__":
     log = Logger('test', std_out=True, save2file=True, file_name='../logs/test.log')

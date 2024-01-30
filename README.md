@@ -239,6 +239,7 @@ mv ChatLM-mini-Chinese model_save
 ## 3.3 Tokenizer训练
 
 原本打算直接用现成的`tokenizer`库训练的（如`sentencepiece`），但是数据集一大就容易OOM。另外预训练数据集各个领域的语料不平衡，会产生很多不必要的合并。最后使用`jieba`分词对所有的预训练语料切词后统计词频，只保留出现1500次以上的字、词，参照`PreTrainedTokenizerFast`的`BPE model`的保存格式，构造`tokenzier`，最后转换为`PreTrainedTokenizerFast`。核心代码如下，详细的处理过程见`utils/train_tokenizer.py`。
+**该方法不是严谨的merge方法，忽略了词频信息及有不该合并的词也合并了，是针对小于16G机器的折中办法，如果要做预训练，建议使用`train_tokenizer.ipynb`的代码重新训练。**
 
 ```python
 # 构造merge数组

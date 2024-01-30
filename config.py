@@ -11,7 +11,7 @@ class InferConfig:
     max_seq_len: int = 320                          # 回答的最大长度
     mixed_precision: str = "bf16"                   # 混合精度 ''no','fp16','bf16' or 'fp8'
 
-    # 全量DPO模型文件
+    # 全量DPO模型文件, tokenizer文件和model权重放在同一个文件夹
     model_dir: str = PROJECT_ROOT + '/model_save/'
 
     # lora PDO 合并后的模型文件
@@ -33,7 +33,7 @@ class DpoConfig:
     max_seq_len: int = 512 + 8                  # 8 for eos token 
     sft_model_file: str = PROJECT_ROOT + '/model_save/'
 
-    tokenizer_dir: str = PROJECT_ROOT + '/model_save/tokenizer'
+    tokenizer_dir: str = PROJECT_ROOT + '/model_save/'   # tokenizer一般和model权重放在同一个文件夹
 
     dpo_train_file: str = PROJECT_ROOT + '/data/my_dpo_data.json'
     dpo_eval_file: str = PROJECT_ROOT + '/data/my_dpo_eval.json'
@@ -63,7 +63,7 @@ class SFTconfig:
 
     finetune_from_ckp_file = PROJECT_ROOT + '/model_save/'
 
-    tokenizer_dir: str = PROJECT_ROOT + '/model_save/tokenizer'
+    tokenizer_dir: str = PROJECT_ROOT + '/model_save/'  # tokenizer一般和model权重放在同一个文件夹
     sft_train_file: str = PROJECT_ROOT + '/data/sft_train.json'
 
     batch_size: int = 12
@@ -96,7 +96,7 @@ class TrainConfig:
 
     warmup_steps: int = 1024                        # 模型参数预热步数，预热样本数=warmup_steps * batch_size * gradient_accumulation_steps
 
-    tokenizer_dir: str = PROJECT_ROOT + '/model_save/tokenizer'
+    tokenizer_dir: str = PROJECT_ROOT + '/model_save/'  # tokenizer一般和model权重放在同一个文件夹
     model_file: str = PROJECT_ROOT + '/model_save/chat_small_t5.{}.bin'
     model_config_file: str = PROJECT_ROOT + '/model_save/model_config.json'
     train_file: str = PROJECT_ROOT + '/data/my_train_dataset.parquet'
@@ -129,11 +129,11 @@ class TrainConfig:
 @dataclass
 class T5ModelConfig:
 
-    d_ff: int = 3072                        # 全连接层维度，默认：2048, 大：3072
+    d_ff: int = 3072                        # 全连接层维度
 
-    d_model: int = 768                      # 词向量维度，默认：512, 大：768
-    num_heads: int = 12                     # 注意力头数 d_model // num_heads == d_kv， 默认：8, 大：12
-    d_kv: int = 64                          # d_model // num_heads， 默认：64, 大：64
+    d_model: int = 768                      # 词向量维度
+    num_heads: int = 12                     # 注意力头数 d_model // num_heads == d_kv
+    d_kv: int = 64                          # d_model // num_heads
 
-    num_decoder_layers: int = 10            # Transformer decoder 隐藏层层数， 默认：6, 大：10
-    num_layers: int = 10                    # Transformer encoder 隐藏层层数，默认：6, 大：10
+    num_decoder_layers: int = 10            # Transformer decoder 隐藏层层数
+    num_layers: int = 10                    # Transformer encoder 隐藏层层数

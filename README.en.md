@@ -229,6 +229,7 @@ You can also manually download it directly from the `Hugging Face Hub` warehouse
 
 I originally planned to directly use the ready-made `tokenizer` library for training (such as `sentencepiece`), but it is easy to OOM when the dataset is large. In addition, the corpus in various fields of the pre-training dataset is unbalanced, which will produce many unnecessary mergers. Finally, use `jieba` word segmentation to segment all the pre-training corpus and count the word frequency, and only retain words and words that appear more than 1500 times. Refer to the `BPE model` saving format of `PreTrainedTokenizerFast` to construct `tokenzier`, and finally convert it to `PreTrainedTokenizerFast`. The core code is as follows. For detailed processing, see `utils/train_tokenizer.py`.
 
+**This method is not a rigorous merge method. It ignores word frequency information and merges words that should not be merged. It is a compromise method for machines smaller than 16G. If you want to do pre-training, it is recommended to use the code of `train_tokenizer.ipynb` to retrain.**  
 
 ```python
 # Construct merge array

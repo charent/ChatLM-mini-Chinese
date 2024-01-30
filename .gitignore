@@ -22,6 +22,6 @@ data/*
 !/data/my_valid_dataset_1k.parquet
 
 model_save/*
-!model_save/tokenizer
+!model_save/put_model_files_here
 
 wandb/*

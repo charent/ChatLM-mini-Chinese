@@ -114,7 +114,10 @@ def train_dpo(config: DpoConfig, peft_config: LoraConfig=None) -> None:
 
     # 9. save log
     loss_log = pd.DataFrame(dpo_trainer.state.log_history)
-    loss_log.to_csv(f"./logs/dpo_train_log_{time.strftime('%Y%m%d-%H%M')}.csv")
+    log_dir = './logs'
+    if not os.path.exists(log_dir):
+        os.mkdir(log_dir)
+    loss_log.to_csv(f"{log_dir}/dpo_train_log_{time.strftime('%Y%m%d-%H%M')}.csv")
     
     # 10. 保存模型/lora
     suffixe = '/lora/' if peft_config is not None else '/dpo'

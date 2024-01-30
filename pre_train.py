@@ -117,7 +117,10 @@ def pre_train(config: TrainConfig) -> None:
 
     #step 9: save log
     loss_log = pd.DataFrame(trainer.state.log_history)
-    loss_log.to_csv(f"./logs/pre_train_log_{time.strftime('%Y%m%d-%H%M')}.csv")
+    log_dir = './logs'
+    if not os.path.exists(log_dir):
+        os.mkdir(log_dir)
+    loss_log.to_csv(f"{log_dir}/pre_train_log_{time.strftime('%Y%m%d-%H%M')}.csv")
 
     # Step 10: Save the model
     trainer.save_model(config.output_dir)
