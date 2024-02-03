@@ -415,6 +415,16 @@ The public `dev` dataset of `Baidu triple extraction dataset` is used as a test 
 
 Note: `ChatLM-Chinese-0.2B without pre-training` means directly initializing random parameters, starting training, learning rate `1e-4`, and other parameters are consistent with fine-tuning.
 
+## 3.9 C-Eval score
+The model itself is not trained with a large dataset and it is no fine-tuning for the instructions for answering multiple-choice questions, and the C-Eval score is basically at the baseline level. If necessary, it can be used as a reference. The C-Eval review code can be found at: 'eval/c_eavl.ipynb'
+
+| category   | correct | question_count| accuracy |
+|    :---    |  :----:    |    :---:      |  :---:   |
+| Humanities |  	63    |    	257       |	  24.51% |
+| Other	     |     89     |	     384      |   23.18% |
+| STEM       |	   89	  |      430      |  20.70%  |
+| Social Science |   72   |	     275      |	  26.18% |
+
 # 4. 🎓Citation
 If you think this project is helpful to you, please site it.
 ```conf

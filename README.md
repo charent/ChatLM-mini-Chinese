@@ -426,6 +426,16 @@ curl --location '127.0.0.1:8812/api/chat' \
 
 备注：`ChatLM-Chinese-0.2B无预训练`指直接初始化随机参数，开始训练，学习率`1e-4`，其他参数和微调一致。
 
+## 3.9 C-Eval分数
+模型本身没有使用较大的数据集训练，也没有针对回答选择题的指令做微调，C-Eval分数基本上是baseline水平，有需要的可以当个参考。C-Eval评测代码见：`eval/c_eavl.ipynb`
+
+| category   | correct | question_count| accuracy |
+|    :---    |  :----:    |    :---:      |  :---:   |
+| Humanities |  	63    |    	257       |	  24.51% |
+| Other	     |     89     |	     384      |   23.18% |
+| STEM       |	   89	  |      430      |  20.70%  |
+| Social Science |   72   |	     275      |	  26.18% |
+
 # 四、🎓引用
 如果你觉得本项目对你有所帮助，欢迎引用。
 ```conf
