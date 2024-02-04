@@ -8,6 +8,8 @@ from tokenizers.models import BPE
 from tokenizers.trainers import BpeTrainer
 from tokenizers.pre_tokenizers import Punctuation, Digits, Metaspace
 from tokenizers.normalizers import NFKC 
+from transformers import PreTrainedTokenizerFast
+
 from rich import progress
 import ujson
 from jieba import lcut
@@ -16,9 +18,12 @@ from multiprocessing import RLock, Pool
 from multiprocessing.managers import BaseManager
 
 import pandas as pd
-import os 
+import os,sys
 import time
 from collections import defaultdict
+
+if '.' not in sys.path or '..' not in sys.path:
+    sys.path.extend(['.', '..'])
 
 from config import PROJECT_ROOT
 
@@ -57,14 +62,26 @@ def train_my_huggingface_tokenizer() -> None:
     tokenizer.train_from_iterator(get_training_corpus(), trainer=trainer)
 
     tokenizer.save(tokenizer_save_path)
-   
+
+def check_dir_exits(dir: str) -> None:
+    '''
+    检查文件夹是否存在，如果不存在则创建文件夹
+    '''
+    if not os.path.exists(dir):
+        os.makedirs(dir)
+    
+
 def train_my_huggingface_wiki_tokenizer(max_train_line: int=None) -> None:
     '''
     训练tokenizer with huggingface，至少需要32G内存，运行大概需要半个小时。
     '''
 
     cropus_file = PROJECT_ROOT + '/data/raw_data/wiki.simple.txt'
-    tokenizer_save_path = PROJECT_ROOT + '/model_save/hf_bpe_tokenizer.josn'
+    tokenizer_slow_save_path = PROJECT_ROOT + '/model_save/hf_tokenizer_slow/hf_bpe_tokenizer.josn'
+    tokenizer_fast_save_path = PROJECT_ROOT + '/model_save/hf_tokenizer'
+
+    check_dir_exits(PROJECT_ROOT + '/model_save/hf_tokenizer_slow')
+    check_dir_exits(tokenizer_fast_save_path)
 
     # if not exists(tokenizer_save_path): mkdir(tokenizer_save_path)
 
@@ -123,7 +140,29 @@ def train_my_huggingface_wiki_tokenizer(max_train_line: int=None) -> None:
     if '\n' not in tokenizer.get_vocab():
         tokenizer.add_tokens(['\n'])
 
-    tokenizer.save(tokenizer_save_path)
+    tokenizer.save(tokenizer_slow_save_path)
+
+    # 将训练的tokenizer转换为PreTrainedTokenizerFast并保存
+    # 转换是为了方便作为`AutoTokenizer`传到其他`huggingface`组件使用。
+
+    # 转换时要手动指定`pad_token`、`eos_token`等特殊token，因为它不指定你原来的tokenizer中哪些字符是这些特殊字符
+
+    slow_tokenizer = tokenizer
+    fast_tokenizer = PreTrainedTokenizerFast(
+        tokenizer_object=slow_tokenizer,
+        unk_token="[UNK]",
+        pad_token="[PAD]",
+        cls_token="[CLS]",
+        sep_token="[SEP]",
+        mask_token="[MASK]",
+        bos_token='[BOS]',
+        eos_token='[EOS]',                  
+    )
+
+    fast_tokenizer.save_pretrained(tokenizer_fast_save_path)
+
+    print(f'slow tokenizer save in path: {tokenizer_slow_save_path}')
+    print(f'fast tokenizer save in path: {tokenizer_fast_save_path}')
 
 def train_my_BPE_tokenizer() -> None:
     '''
@@ -413,25 +452,22 @@ def trained_tokenizer_to_PreTrainedTokenizerFast():
 
 
 if __name__ == '__main__':
-    # train_my_huggingface_tokenizer()
 
     train_my_huggingface_wiki_tokenizer()
-    exit(0) 
+
     # train_my_BPE_tokenizer()
    
     # step 1: 统计预训练语料的词频、字频
-    get_corpus_dict()
+    # get_corpus_dict()
     # get_cropus_dict_multi_process()
 
     # step 2: 将词频、字频大于N的字、词添加到词典中
-    merge_cropus_dict(word_min_freq=2500, char_min_freq=1500) 
+    # merge_cropus_dict(word_min_freq=2500, char_min_freq=1500) 
 
     # step 3: 将2中得到的词典转换为这个tokenizer：from tokenizers import Tokenizer
-    change_cropus_dict_to_tokenizer()
+    # change_cropus_dict_to_tokenizer()
 
     # step 4: 将 Tokenizer 转换为 PreTrainedTokenizerFast
-    trained_tokenizer_to_PreTrainedTokenizerFast()
-
-    pass
+    # trained_tokenizer_to_PreTrainedTokenizerFast()
 
 
