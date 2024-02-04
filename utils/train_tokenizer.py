@@ -71,7 +71,7 @@ def check_dir_exits(dir: str) -> None:
         os.makedirs(dir)
     
 
-def train_my_huggingface_wiki_tokenizer(max_train_line: int=None) -> None:
+def train_my_huggingface_wiki_tokenizer(max_train_line: int=None, token_type: str='char') -> None:
     '''
     训练tokenizer with huggingface，至少需要32G内存，运行大概需要半个小时。
     '''
@@ -82,8 +82,6 @@ def train_my_huggingface_wiki_tokenizer(max_train_line: int=None) -> None:
 
     check_dir_exits(PROJECT_ROOT + '/model_save/hf_tokenizer_slow')
     check_dir_exits(tokenizer_fast_save_path)
-
-    # if not exists(tokenizer_save_path): mkdir(tokenizer_save_path)
 
     def get_training_corpus(buffer_size: int=1000, chunk_len: int=2048) -> list:
         '''
@@ -114,22 +112,35 @@ def train_my_huggingface_wiki_tokenizer(max_train_line: int=None) -> None:
             # yield last
             if len(buffer) > 0: yield buffer        
 
-    model = BPE(unk_token="[UNK]")
-
-    tokenizer = Tokenizer(model)
-    
     special_tokens = ["[PAD]","[EOS]","[SEP]","[BOS]", "[CLS]", "[MASK]", "[UNK]"]
+    
+    if token_type =='char':
 
-    # 用兼容等价分解合并对utf编码进行等价组合，比如全角A转换为半角A
-    tokenizer.normalizer = tokenizers.normalizers.Sequence([NFKC()])
+        model = BPE(unk_token="[UNK]")
+        tokenizer = Tokenizer(model)
+        
+        # 用兼容等价分解合并对utf编码进行等价组合，比如全角A转换为半角A
+        tokenizer.normalizer = tokenizers.normalizers.Sequence([NFKC()])
 
-    # 标点符号，数字，及Metaspace预分割（否则decode出来没有空格）
-    tokenizer.pre_tokenizer = tokenizers.pre_tokenizers.Sequence(
-        [Punctuation(), Digits(individual_digits=True), Metaspace()]
-    )
+        # 标点符号，数字，及Metaspace预分割（否则decode出来没有空格）
+        tokenizer.pre_tokenizer = tokenizers.pre_tokenizers.Sequence(
+            [Punctuation(), Digits(individual_digits=True), Metaspace()]
+        )
 
-    tokenizer.add_special_tokens(special_tokens)
-    tokenizer.decoder = decoders.Metaspace()
+        tokenizer.add_special_tokens(special_tokens)
+        tokenizer.decoder = decoders.Metaspace()
+    elif token_type == 'byte':
+
+        # byte BPE n不需要unk_token
+        model = BPE() 
+        tokenizer = Tokenizer(model)
+        tokenizer.pre_tokenizer = tokenizers.pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=True)
+
+        tokenizer.add_special_tokens(special_tokens)
+        tokenizer.decoder = decoders.ByteLevel(add_prefix_space=False, use_regex=True)
+        tokenizer.post_processor = tokenizers.processors.ByteLevel(trim_offsets=False)
+    else:
+        raise Exception(f'token type must be `char` or `byte`, but got {token_type}')
 
     trainer = BpeTrainer(vocab_size=40960, min_frequency=100, show_progress=True, special_tokens=special_tokens)
     tokenizer.train_from_iterator(get_training_corpus(), trainer=trainer)
@@ -453,7 +464,7 @@ def trained_tokenizer_to_PreTrainedTokenizerFast():
 
 if __name__ == '__main__':
 
-    train_my_huggingface_wiki_tokenizer()
+    train_my_huggingface_wiki_tokenizer(token_type='char') # token_type must be 'char' or 'byte'
 
     # train_my_BPE_tokenizer()
    
