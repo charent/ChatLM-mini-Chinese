@@ -236,25 +236,39 @@ mv ChatLM-mini-Chinese model_save
 
 也可以直接从`Hugging Face Hub`仓库[ChatLM-Chinese-0.2B](https://huggingface.co/charent/ChatLM-mini-Chinese)手工下载，将下载的文件移动到`model_save`目录下即可。
 
-## 3.3 Tokenizer训练
+## 3.3 Tokenizer训练  
 
-原本打算直接用现成的`tokenizer`库训练的（如`sentencepiece`），但是数据集一大就容易OOM。另外预训练数据集各个领域的语料不平衡，会产生很多不必要的合并。最后使用`jieba`分词对所有的预训练语料切词后统计词频，只保留出现1500次以上的字、词，参照`PreTrainedTokenizerFast`的`BPE model`的保存格式，构造`tokenzier`，最后转换为`PreTrainedTokenizerFast`。核心代码如下，详细的处理过程见`utils/train_tokenizer.py`。
-**该方法不是严谨的merge方法，忽略了词频信息及有不该合并的词也合并了，是针对小于16G机器的折中办法，如果要做预训练，建议使用`train_tokenizer.ipynb`的代码重新训练。**
+1. 准备txt语料  
+
+语料要求尽可能全，建议添加多个语料，如百科、代码、论文、博客、对话等。   
+
+本项目以wiki中文百科为主。获取中文wiki语料方法：中文Wiki下载地址：[zhwiki](https://dumps.wikimedia.org/zhwiki/)，下载`zhwiki-[存档日期]-pages-articles-multistream.xml.bz2`文件，大概2.7GB， 将下载的bz2文件转换为wiki.txt参考：[WikiExtractor](https://github.com/apertium/WikiExtractor)，再利用python的`OpenCC`库转换为简体中文，最后将得到的`wiki.simple.txt`放到项目根目录的`data`目录下即可。多个语料请自行合并为一个`txt`文件。
+
+由于训练tokenizer非常耗内存，如果你的语料非常大（合并后的`txt`文件超过2G），建议对语料按照类别、比例进行采样，以减少训练时间和内存消耗。训练1.7GB的`txt`文件需要消耗48GB左右的内存（预估的，我只有32GB，频繁触发swap，电脑卡了好久T_T），13600k cpu耗时1小时左右。
+
+2. 训练tokenizer
+
+`char level`和`byte level`的区别如下（具体使用上的区别请自行检索资料）。默认训练`char level`的tokenizer，如果需要`byte level`，在`train_tokenizer.py`中设置`token_type='byte'`即可。
 
 ```python
-# 构造merge数组
-words_merge_list = []
-for word in words_dict.keys():
-    n = len(word)
-    if n >= 2:
-        # a, b切分12345示例： 1 2345,  12 345,   123 45,   1234 5
-        for i in range(1, n):
-            a, b = ''.join(word[0: i]), ''.join(word[i: ])
+# 原始文本
+txt = '这是一段中英混输的句子, （chinese and English, here are words.）'
 
-            if a in words_dict and b in words_dict:
-                words_merge_list.append((a, b))
+tokens = charlevel_tokenizer.tokenize(txt)
+print(tokens)
+# char level tokens输出
+# ['▁这是', '一段', '中英', '混', '输', '的', '句子', '▁,', '▁(', '▁ch', 'inese', '▁and', '▁Eng', 'lish', '▁,', '▁h', 'ere', '▁', 'are', '▁w', 'ord', 's', '▁.', '▁)']
+
+tokens = bytelevel_tokenizer.tokenize(txt)
+print(tokens)
+# byte level tokens输出
+# ['Ġè¿Ļæĺ¯', 'ä¸Ģæ®µ', 'ä¸Ńèĭ±', 'æ··', 'è¾ĵ', 'çļĦ', 'åı¥åŃĲ', 'Ġ,', 'Ġ(', 'Ġch', 'inese', 'Ġand', 'ĠEng', 'lish', 'Ġ,', 'Ġh', 'ere', 'Ġare', 'Ġw', 'ord', 's', 'Ġ.', 'Ġ)']
 ```
-本项目还提供了使用预训练模型自带的`tokenizer`根据自己的语料重新训练`tokenizer`的例子，见`train_tokenizer.ipynb`。注意，重新训练`tokenizer`后，预训练模型的权重将无法使用，需要重新训练模型权重，因为`token`对应的`id`变了。
+开始训练：
+```python
+# 确保你的训练语料`txt`文件已经data目录下
+python train_tokenizer.py
+```
 
 ## 3.4 Text-to-Text 预训练 
 

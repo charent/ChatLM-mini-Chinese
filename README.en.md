@@ -227,24 +227,39 @@ You can also manually download it directly from the `Hugging Face Hub` warehouse
 
 ## 3.3 Tokenizer training
 
-I originally planned to directly use the ready-made `tokenizer` library for training (such as `sentencepiece`), but it is easy to OOM when the dataset is large. In addition, the corpus in various fields of the pre-training dataset is unbalanced, which will produce many unnecessary mergers. Finally, use `jieba` word segmentation to segment all the pre-training corpus and count the word frequency, and only retain words and words that appear more than 1500 times. Refer to the `BPE model` saving format of `PreTrainedTokenizerFast` to construct `tokenzier`, and finally convert it to `PreTrainedTokenizerFast`. The core code is as follows. For detailed processing, see `utils/train_tokenizer.py`.
+1. Prepare txt corpus
 
-**This method is not a rigorous merge method. It ignores word frequency information and merges words that should not be merged. It is a compromise method for machines smaller than 16G. If you want to do pre-training, it is recommended to use the code of `train_tokenizer.ipynb` to retrain.**  
+The corpus requirements should be as complete as possible. It is recommended to add multiple corpora, such as encyclopedias, codes, papers, blogs, conversations, etc.
+
+This project is mainly based on wiki Chinese encyclopedia. How to obtain Chinese wiki corpus: Chinese Wiki download address: [zhwiki](https://dumps.wikimedia.org/zhwiki/), download the `zhwiki-[archive date]-pages-articles-multistream.xml.bz2` file, About 2.7GB, convert the downloaded bz2 file to wiki.txt reference: [WikiExtractor](https://github.com/apertium/WikiExtractor), then use python's `OpenCC` library to convert to Simplified Chinese, and finally get the Just put `wiki.simple.txt` in the `data` directory of the project root directory. Please merge multiple corpora into one `txt` file yourself.
+
+Since training tokenizer consumes a lot of memory, if your corpus is very large (the merged `txt` file exceeds 2G), it is recommended to sample the corpus according to categories and proportions to reduce training time and memory consumption. Training a 1.7GB `txt` file requires about 48GB of memory (estimated, I only have 32GB, triggering swap frequently, computer stuck for a long time T_T), 13600k CPU takes about 1 hour.
+
+2. train tokenizer
+
+The difference between `char level` and `byte level` is as follows (Please search for information on your own for specific differences in use.). The tokenizer of `char level` is trained by default. If `byte level` is required, just set `token_type='byte'` in `train_tokenizer.py`.
 
 ```python
-# Construct merge array
-words_merge_list = []
-for word in words_dict.keys():
-    n = len(word)
-    if n >= 2:
-        # a, b split 12345 example： 1 2345,  12 345,   123 45,   1234 5
-        for i in range(1, n):
-            a, b = ''.join(word[0: i]), ''.join(word[i: ])
+# original text
+txt = '这是一段中英混输的句子, （chinese and English, here are words.）'
 
-            if a in words_dict and b in words_dict:
-                words_merge_list.append((a, b))
+tokens = charlevel_tokenizer.tokenize(txt)
+print(tokens)
+# char level tokens output
+# ['▁这是', '一段', '中英', '混', '输', '的', '句子', '▁,', '▁(', '▁ch', 'inese', '▁and', '▁Eng', 'lish', '▁,', '▁h', 'ere', '▁', 'are', '▁w', 'ord', 's', '▁.', '▁)']
+
+tokens = bytelevel_tokenizer.tokenize(txt)
+print(tokens)
+# byte level tokens output
+# ['Ġè¿Ļæĺ¯', 'ä¸Ģæ®µ', 'ä¸Ńèĭ±', 'æ··', 'è¾ĵ', 'çļĦ', 'åı¥åŃĲ', 'Ġ,', 'Ġ(', 'Ġch', 'inese', 'Ġand', 'ĠEng', 'lish', 'Ġ,', 'Ġh', 'ere', 'Ġare', 'Ġw', 'ord', 's', 'Ġ.', 'Ġ)']
 ```
-This project also provides an example of using the `tokenizer` that comes with the pre-trained model to retrain the `tokenizer` based on your own corpus, see `train_tokenizer.ipynb`. Note that after retraining `tokenizer`, the weights of the pre-trained model will not be available, and the model weights need to be retrained because the `id` corresponding to `token` has changed.
+
+Start training：
+
+```python
+# Make sure your training corpus `txt` file is in the data directory
+python train_tokenizer.py
+```
 
 ## 3.4 Text-to-Text pre-training
 1. Pre-training dataset example
