@@ -110,7 +110,6 @@ def pre_train(config: TrainConfig) -> None:
         model=model,
         args=training_args,
         train_dataset=dataset,
-        eval_dataset=dataset,
         tokenizer=tokenizer,
         data_collator=collator,
         callbacks=[empty_cuda_cahce],
