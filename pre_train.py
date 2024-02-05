@@ -48,7 +48,7 @@ def get_dataset(file: str, split: str, tokenizer: PreTrainedTokenizerFast,  cach
             'labels': labels,
         }
 
-    dataset = dataset.map(tokens_to_ids, batched=True, batch_size=8192)
+    dataset = dataset.map(tokens_to_ids, batched=True, batch_size=8192, remove_columns=dataset.column_names)
 
     return dataset
 
