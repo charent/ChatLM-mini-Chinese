@@ -3,51 +3,59 @@ import time
 import os 
 import pandas as pd 
 from dataclasses import dataclass
+import torch
+from typing import Dict
 
 from tqdm import tqdm
-from transformers import PreTrainedTokenizerFast, Seq2SeqTrainer, DataCollatorForSeq2Seq,Seq2SeqTrainingArguments
+import numpy as np
+from transformers import PreTrainedTokenizerFast, Seq2SeqTrainer, DataCollatorForSeq2Seq, Seq2SeqTrainingArguments
+
 from transformers.generation.configuration_utils import GenerationConfig
+from datasets import Dataset, load_dataset
 
 from model.chat_model import TextToTextModel
 from model.dataset import MyDataset
 from config import TrainConfig, T5ModelConfig
-from utils.functions import json_to_dataclass, get_T5_config
+
+from utils.functions import json_to_dataclass, get_T5_config, MyTrainerCallback
 
 tqdm.pandas()
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
-@dataclass
-class My_DataCollatorForSeq2Seq(DataCollatorForSeq2Seq):
-    def __call__(self, features, return_tensors=None):
-        '''
-        将文本编码为id，MyDataset的`__getitem__`方法返回的是: (str, str)
-        features:list[tuple[str, str]]
-        '''    
-        prompt = [item[0] for item in features]
-        resopnse = [item[1] for item in features]
+def get_dataset(file: str, split: str, tokenizer: PreTrainedTokenizerFast,  cache_dir: str='.cache') -> Dataset:
+    """
+    加载数据集
+    """
+    dataset = load_dataset('parquet', data_files=file,  split=split, cache_dir=cache_dir)
 
-        tokenizer =self.tokenizer
-        prompt_encoded = tokenizer(prompt, padding=False, return_token_type_ids=False, return_attention_mask=False)['input_ids']
-        resopnse_encoded = tokenizer(resopnse, padding=False, return_token_type_ids=False, return_attention_mask=False)['input_ids']
+    def tokens_to_ids(samples: dict) -> Dict[str, str]:
 
-        batch_size = len(features)
-        data = []
-        for i in range(batch_size):
-            data.append(
-                {
-                    'input_ids': prompt_encoded[i],
-                    'labels': resopnse_encoded[i]
-                }
-            )
+        eos_token_id = tokenizer.eos_token_id
 
-        return super().__call__(data, return_tensors)
-    
+        batch_prompt = samples['prompt']
+        batch_response = samples['response']
+
+        encoded_prompt = tokenizer(batch_prompt, truncation=False, padding=False, return_attention_mask=False,)
+        encoded_response = tokenizer(batch_response, truncation=False, padding=False, return_attention_mask=False,)
+
+        # vocab size 小于65535 可以用 uint16, 每个样本都要添加eos_token_id
+        input_ids = [np.array(item + [eos_token_id], dtype=np.uint16) for item in encoded_prompt["input_ids"]]
+        labels = [np.array(item + [eos_token_id], dtype=np.uint16) for item in encoded_response["input_ids"]]
+
+        return {
+            'input_ids': input_ids,
+            'labels': labels,
+        }
+
+    dataset = dataset.map(tokens_to_ids, batched=True, batch_size=8192)
+
+    return dataset
 
 def pre_train(config: TrainConfig) -> None:
 
     # step 1. 加载tokenizer
-    tokenizer = PreTrainedTokenizerFast.from_pretrained(config.tokenizer_dir)\
+    tokenizer = PreTrainedTokenizerFast.from_pretrained(config.tokenizer_dir)
     
     # step 2. 加载模型配置文件
     t5_config = get_T5_config(T5ModelConfig(), vocab_size=len(tokenizer), decoder_start_token_id=tokenizer.pad_token_id, eos_token_id=tokenizer.eos_token_id)
@@ -56,11 +64,7 @@ def pre_train(config: TrainConfig) -> None:
     model = TextToTextModel(t5_config)
 
     # Step 4: Load my dataset
-    dataset = MyDataset(
-        parquet_file=config.train_file,
-        tokenizer_dir=config.tokenizer_dir,
-        buffer_size=40960,
-    )
+    dataset = get_dataset(file=config.train_file, split='train', tokenizer=tokenizer)
 
     # Step 5: Define the training arguments
 
@@ -98,8 +102,9 @@ def pre_train(config: TrainConfig) -> None:
     )
 
     # step 6: init my collator,
-    collator = My_DataCollatorForSeq2Seq(tokenizer, max_length=config.max_seq_len)
-    
+    collator = DataCollatorForSeq2Seq(tokenizer, max_length=config.max_seq_len)
+    empty_cuda_cahce = MyTrainerCallback()
+
     # Step 7: Define the Trainer
     trainer = Seq2SeqTrainer(
         model=model,
@@ -108,6 +113,7 @@ def pre_train(config: TrainConfig) -> None:
         eval_dataset=dataset,
         tokenizer=tokenizer,
         data_collator=collator,
+        callbacks=[empty_cuda_cahce],
     )
 
     # step 8: train

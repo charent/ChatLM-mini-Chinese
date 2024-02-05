@@ -3,7 +3,7 @@ from typing import Dict
 import time 
 import os 
 import pandas as pd 
-
+import numpy as np
 import torch
 from datasets import Dataset, load_dataset
 from peft import LoraConfig
@@ -13,29 +13,41 @@ from transformers.generation.configuration_utils import GenerationConfig
 
 from model.chat_model import TextToTextModel
 from config import SFTconfig, T5ModelConfig
-from utils.functions import get_T5_config
+from utils.functions import get_T5_config, MyTrainerCallback
 
 tqdm.pandas()
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
-def get_dataset(file: str, split: str, encode_fn: callable, encode_args: dict,  cache_dir: str='.cache') -> Dataset:
+def get_dataset(file: str, split: str, tokenizer: PreTrainedTokenizerFast, cache_dir: str='.cache') -> Dataset:
     """
-    Load a dataset
+    加载数据集
     """
+
+    # 加载json数据集，如果要加载parquet，更改为'parquet'即可
     dataset = load_dataset('json', data_files=file,  split=split, cache_dir=cache_dir)
 
-    def merge_prompt_and_responses(sample: dict) -> Dict[str, str]:
-        # add an eos token note that end of sentence, using in generate.
-        prompt = encode_fn(sample['prompt'] + '[EOS]', **encode_args)
-        response = encode_fn(sample['response'] + '[EOS]', **encode_args)
+    def tokens_to_ids(samples: dict) -> Dict[str, str]:
+
+        eos_token_id = tokenizer.eos_token_id
+
+        batch_prompt = samples['prompt']
+        batch_response = samples['response']
+
+        encoded_prompt = tokenizer(batch_prompt, truncation=False, padding=False, return_attention_mask=False)
+        encoded_response = tokenizer(batch_response, truncation=False, padding=False, return_attention_mask=False)
+
+        # vocab size 小于65535 可以用 uint16, 每个样本都要添加eos_token_id
+        input_ids = [np.array(item + [eos_token_id], dtype=np.uint16) for item in encoded_prompt["input_ids"]]
+        labels = [np.array(item + [eos_token_id], dtype=np.uint16) for item in encoded_response["input_ids"]]
+
         return {
-            'input_ids': prompt.input_ids,
-            'labels': response.input_ids,
+            'input_ids': input_ids,
+            'labels': labels,
         }
 
-    dataset = dataset.map(merge_prompt_and_responses)
-    return dataset
+    dataset = dataset.map(tokens_to_ids, batched=True, batch_size=8192)
 
+    return dataset
 
 def sft_train(config: SFTconfig) -> None:
 
@@ -54,12 +66,7 @@ def sft_train(config: SFTconfig) -> None:
         model.load_state_dict(torch.load(config.finetune_from_ckp_file, map_location='cpu')) # set cpu for no exception
 
     # Step 4: Load the dataset
-    encode_args = {
-        'truncation': False,
-        'padding': 'max_length',
-    }
-
-    dataset = get_dataset(file=config.sft_train_file, encode_fn=tokenizer.encode_plus, encode_args=encode_args, split="train")
+    dataset = get_dataset(file=config.sft_train_file, split="train", tokenizer=tokenizer)
 
     # Step 5: Define the training arguments
     # T5属于sequence to sequence模型，故要使用Seq2SeqTrainingArguments、DataCollatorForSeq2Seq、Seq2SeqTrainer
@@ -96,7 +103,8 @@ def sft_train(config: SFTconfig) -> None:
 
     # step 6: init a collator
     collator = DataCollatorForSeq2Seq(tokenizer, max_length=config.max_seq_len)
-    
+    empty_cuda_cahce = MyTrainerCallback()
+
     # Step 7: Define the Trainer
     trainer = Seq2SeqTrainer(
         model=model,
@@ -105,6 +113,7 @@ def sft_train(config: SFTconfig) -> None:
         eval_dataset=dataset,
         tokenizer=tokenizer,
         data_collator=collator,
+        callbacks=[empty_cuda_cahce]
     )
 
     # step 8: train

@@ -6,11 +6,14 @@ import ctypes
 import os
 import platform
 import re
+import torch
 
-# from nltk import ngrams
 from datasketch import MinHash, MinHashLSH
 from collections import defaultdict
+from transformers.trainer_callback import TrainerControl, TrainerState
+from transformers import TrainingArguments, TrainerCallback
 
+# from nltk import ngrams
 from nltk.translate.bleu_score import sentence_bleu
 import numpy as np
 import ujson
@@ -19,6 +22,25 @@ from config import T5ModelConfig
 
 # 结束标点符号
 END_PUN = set(".。!！）)》}】?？\"”")
+
+class MyTrainerCallback(TrainerCallback):
+    log_cnt = 0
+    def on_log(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+        '''
+        在打印 n 次日志后清除cuda缓存，适合低显存设备，能防止OOM
+        '''
+        self.log_cnt += 1
+        if self.log_cnt % 2 == 0:
+            torch.cuda.empty_cache()
+    
+    def on_epoch_end(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+        '''
+        在 on_epoch_end 时保存一次模型。
+        TrainingArguments的 save_strategy 中 epoch 和 steps 不兼容。要实现每隔 save_steps 步保存一次检查点，考虑到磁盘空间大小，最多只保存最近N个检查点。
+        '''
+        # 设置should_save=True并返回即可
+        control.should_save = True
+        return control
 
 
 # 保留中文和英文、下划线，不要标点符号

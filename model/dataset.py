@@ -1,7 +1,7 @@
 from typing import Union
 
 from torch.utils.data import Dataset
-from torch import LongTensor
+from torch import LongTensor, cuda
 from transformers import PreTrainedTokenizerFast
 from fastparquet import ParquetFile
 from torch.utils.data import DataLoader
@@ -30,6 +30,9 @@ class MyDataset(Dataset):
             False将使用迭代生成器(迭代生成器不支持打乱数据)，减少大数据集内存占用
         '''
         super().__init__()
+
+        if cuda.device_count() >= 2 and not keep_in_memory:
+            raise ValueError(f'多GPU时使用MyDataset，参数keep_in_memory必须=True，否则无法进行分布式训练. 当前keep_in_memory={keep_in_memory}')
 
         self.keep_in_memory = keep_in_memory
         self.max_seq_len = max_seq_len

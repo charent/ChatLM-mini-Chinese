@@ -150,7 +150,8 @@ class ChatTrainer:
 
         # 剩余内存≥48GB将把数据集留在内存中,因为2个显卡+全全部装载900多万的训练数据到内存需要大概43GB的CPU内存
         # 如果不放在内存中，将会使用迭代器生成数据，CPU 内存小于16GB也可以运行，但是不支持顺序打乱。
-        keep_in_memory = True if unuse_mem >= 48.0 else False
+        # 多GPU keep_in_memory必须=True，否则无法进行分布式训练
+        keep_in_memory = True if unuse_mem >= 48.0 or torch.cuda.device_count() >= 2 else False
 
         if accelerator.is_main_process:
             log.info('cpu memory available: {:.2f} GB, disk space available: {:.2f} GB, keep dataset in memory: {}.'\
