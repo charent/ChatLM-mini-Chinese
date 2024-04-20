@@ -371,6 +371,9 @@ class ChatTrainer:
             
             #  end for batch setps
 
+            # 等所有训练进程完成再开始评估
+            accelerator.wait_for_everyone()
+
             model.eval()         
             
             cur_bleu4_score = self.evaluate(
