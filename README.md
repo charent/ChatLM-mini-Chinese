@@ -202,23 +202,42 @@ cd ChatLM-mini-Chinese
 ```
 ### 3.2.2 安装依赖 
 
-本项目推荐使用`python 3.10`，过老的python版本可能不兼容所依赖的第三方库。  
+本项目使用 [uv](https://docs.astral.sh/uv/) 管理依赖，推荐 `python 3.10`（已在 `.python-version` 中固定，`uv` 会自动下载并使用独立的解释器，不会污染系统 Python）。
 
-pip安装：
-```bash
-pip install -r ./requirements.txt
-``` 
+1. 安装 `uv`（任选其一）：
 
-如果pip安装了CPU版本的pytorch，可以通过下面的命令安装CUDA版本的pytorch：
 ```bash
-# pip 安装torch + cu118
-pip3 install torch --index-url https://download.pytorch.org/whl/cu118
+# 官方安装脚本，Windows 请在 PowerShell 中执行
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# 或者通过 pipx 安装
+pipx install uv
 ```
 
-conda安装：
+2. 安装依赖（自动创建 `.venv` 虚拟环境并安装全部依赖）：
+
 ```bash
-conda install --yes --file ./requirements.txt
+uv sync
 ```
+
+`pyproject.toml` 中已为 `torch` 配置好 CUDA 12.1 官方源（`https://download.pytorch.org/whl/cu121`），无需再单独安装 GPU 版本。如果你的显卡只支持 CUDA 11.8，把 `pyproject.toml` 里 `tool.uv.index` 的地址改为 `https://download.pytorch.org/whl/cu118` 后重新执行 `uv sync` 即可。
+
+如果需要用 jupyter 交互式训练（`train.ipynb`），追加安装开发依赖：
+
+```bash
+uv sync --group dev
+```
+
+3. 运行项目（`uv run` 会自动使用 `.venv` 中的解释器）：
+
+```bash
+uv run cli_demo.py
+uv run api_demo.py
+```
+
+下文所有 `python xxx.py` 形式的命令都可以等价替换为 `uv run python xxx.py`；也可以先激活虚拟环境（Windows：`.venv\Scripts\activate`，Linux/macOS：`source .venv/bin/activate`）后直接使用 `python`。
+
+> 依赖统一声明在 `pyproject.toml` 中，精确版本由 `uv.lock` 锁定。如果不用 `uv`，可以用 `pip install -r pyproject.toml`（pip ≥ 23.1）安装，但 `pip` 不识别 `tool.uv.index`，需要自行追加 `--index-url https://download.pytorch.org/whl/cu121` 才能装上 GPU 版 `torch`。
 
 ### 3.2.3 下载预训练模型及模型配置文件
 

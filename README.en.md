@@ -190,23 +190,42 @@ git clone --depth 1 https://github.com/charent/ChatLM-mini-Chinese.git
 cd ChatLM-mini-Chinese
 ```
 ### 3.2.2 Install dependencies
-It is recommended to use `python 3.10` for this project. Older python versions may not be compatible with the third-party libraries it depends on.
+This project manages dependencies with [uv](https://docs.astral.sh/uv/) and recommends `python 3.10` (pinned in `.python-version`; `uv` downloads and uses its own interpreter, so your system Python stays untouched).
 
-pip installation:
+1. Install `uv` (pick one):
+
 ```bash
-pip install -r ./requirements.txt
+# official installer, run in PowerShell on Windows
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# or via pipx
+pipx install uv
 ```
 
-If pip installed the CPU version of pytorch, you can install the CUDA version of pytorch with the following command:
+2. Install dependencies (creates `.venv` automatically):
+
 ```bash
-# pip install torch + cu118
-pip3 install torch --index-url https://download.pytorch.org/whl/cu118
+uv sync
 ```
 
-conda installation:
+`pyproject.toml` already points `torch` at the CUDA 12.1 index (`https://download.pytorch.org/whl/cu121`), so there is no need to install a GPU build separately. If your GPU only supports CUDA 11.8, change the `tool.uv.index` URL in `pyproject.toml` to `https://download.pytorch.org/whl/cu118` and run `uv sync` again.
+
+To use jupyter for interactive training (`train.ipynb`), install the dev group as well:
+
 ```bash
-conda install --yes --file ./requirements.txt
+uv sync --group dev
 ```
+
+3. Run the project (`uv run` uses the interpreter from `.venv`):
+
+```bash
+uv run cli_demo.py
+uv run api_demo.py
+```
+
+Every `python xxx.py` command below can be replaced with `uv run python xxx.py`, or you can activate the environment first (Windows: `.venv\Scripts\activate`, Linux/macOS: `source .venv/bin/activate`) and keep using `python`.
+
+> Dependencies live in `pyproject.toml` and their exact versions are pinned by `uv.lock`. Without `uv` you can still run `pip install -r pyproject.toml` (pip >= 23.1), but `pip` ignores `tool.uv.index`, so add `--index-url https://download.pytorch.org/whl/cu121` to get the GPU build of `torch`.
 
 ### 3.2.3 Download the pre-trained model and model configuration file
 

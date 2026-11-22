@@ -1,0 +1,76 @@
+[project]
+name = "chatlm-mini-chinese"
+version = "0.1.0"
+description = "中文对话0.2B小模型 ChatLM-Chinese-0.2B：从0开始的 tokenizer 训练、Text-to-Text 预训练、SFT 微调、DPO 偏好优化（基于 T5）"
+readme = "README.md"
+requires-python = ">=3.10,<3.12"
+license = { text = "Apache-2.0" }
+
+# 依赖版本锁定在 uv.lock 中，改动后执行 `uv lock` 更新
+dependencies = [
+    "accelerate==0.25.0",
+    "colorlog==6.8.0",
+    "datasets==2.15.0",
+    "datasketch==1.6.4",
+    "fastapi==0.109.1",
+    "fastparquet==2023.10.1",
+    "fire==0.5.0",
+    "jieba==0.42.1",
+    "matplotlib==3.8.2",
+    "modelscope==1.11.1",
+    "nltk==3.8.1",
+    "numpy==1.26.2",
+    "opencc-python-reimplemented==0.1.7",
+    "pandas==2.1.4",
+    "peft==0.6.2",
+    "psutil==5.9.6",
+    "pyarrow==14.0.1",
+    "pydantic==2.5.2",
+    "rich==13.7.0",
+    "safetensors==0.4.1",
+    "sentencepiece==0.1.99",
+    "tokenizers==0.15.0",
+    "torch==2.1.1",
+    "torch-optimizer==0.3.0",
+    "tqdm==4.66.1",
+    "transformers==4.36.0",
+    "trl==0.7.4",
+    "ujson==5.8.0",
+    "uvicorn==0.24.0.post1",
+]
+
+# 预训练、SFT、DPO 训练时可能用到的额外工具（jupyter 交互式训练见 train.ipynb）
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29.0",
+    "jupyterlab>=4.0.0",
+]
+
+[tool.uv]
+# 本项目不是可安装的库，仅管理依赖环境
+package = false
+
+# 默认只安装运行依赖，jupyter 相关工具用 `uv sync --group dev` 按需安装
+default-groups = []
+
+# torch 的 cu121 轮包在 Linux 上依赖 triton（没有 Windows 轮子），
+# 显式声明支持的平台，让 uv 按平台 fork 解析，避免在 Windows 上尝试安装 triton
+environments = [
+    "sys_platform == 'linux'",
+    "sys_platform == 'win32'",
+]
+
+# torch 2.1.1+cu121 的包元数据把 triton 声明为无条件依赖（实际只有 Linux 需要），
+# 这里补上平台标记，否则 Windows 下解析失败
+override-dependencies = [
+    "triton; sys_platform == 'linux'",
+]
+
+# torch 的 CUDA 12.1 轮子只在 pytorch 官方源上，PyPI 上的 Windows 轮子是 CPU 版
+[[tool.uv.index]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu121" }
