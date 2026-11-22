@@ -20,7 +20,8 @@ def get_free_space_of_disk(folder: str = "./") -> float:
         )
         res_val = free_bytes.value
     else:
-        st = os.statvfs(folder)
+        # statvfs 仅存在于 POSIX 平台，Windows 分支不会走到这里
+        st = os.statvfs(folder)  # pyright: ignore[reportAttributeAccessIssue]
         res_val = st.f_bavail * st.f_frsize
 
     return res_val / (1024**3)

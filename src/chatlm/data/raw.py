@@ -4,6 +4,7 @@ from os.path import dirname, abspath, exists, isdir
 from os import makedirs, remove, walk
 import time
 from collections import defaultdict
+from collections.abc import Callable
 
 from matplotlib import pyplot as plt
 import codecs, csv
@@ -23,7 +24,7 @@ from chatlm.utils.text import DropDatasetDuplicate
 
 log = Logger('data_process', save2file=True, file_name=str(LOG_DIR / 'raw_data_process.log'))
 
-punctuation = set("!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~.,;《》？！“”‘’@#￥%…&×（）——+【】{};；●，。&～、|\s:：\n")
+punctuation = set("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~.,;《》？！“”‘’@#￥%…&×（）——+【】{};；●，。&～、|\\s:：\n")
 en_punctuation = ",().!;:"
 zh_punctuation = "，（）。！；："
 
@@ -93,7 +94,12 @@ def write_single_parquet_file(file_name: str, data_frame: pd.DataFrame) -> None:
     write(file_name, data_frame, compression='GZIP',append=append)
 
 
-def read_and_write_template(read_file: str, write_to_file: str, call_back: object, group_cnt: int=10000) -> None:
+def read_and_write_template(
+    read_file: str,
+    write_to_file: str,
+    call_back: Callable[[str], dict[str, str] | None],
+    group_cnt: int = 10000,
+) -> None:
     '''
     处理数据读写模板，需要提供一个回调函数call_back，
     read_file: 原始数据文件
@@ -101,7 +107,7 @@ def read_and_write_template(read_file: str, write_to_file: str, call_back: objec
     call_back：函数输入一个字符串，输出一个处理后的字典dict，如果输入的字符串为无效数据，请返回None
     group_cnt: parquet file分割行数
     如：
-    >>> def call_back(inputs: str) -> dict:
+    >>> def call_back(inputs: str) -> dict | None:
     >>>     if check(inputs) not valid:
     >>>         return None
     ...    
@@ -183,7 +189,7 @@ def process_web_text(keep_start: int=5, response_less_word: int=10) -> None:
     if exists(save_file_name): 
         assert delete_file(save_file_name)
 
-    def process_function(line: str) -> dict:
+    def process_function(line: str) -> dict | None:
         item = ujson.loads(line)
 
         if item['star'] < keep_start or len(item['content']) < response_less_word: 
@@ -220,7 +226,7 @@ def process_bake_qa(response_less_word: int=15) -> None:
     if exists(save_file_name): 
         assert delete_file(save_file_name)
 
-    def process_function(line: str) -> dict:
+    def process_function(line: str) -> dict | None:
         item = ujson.loads(line)
 
         if len(item['answer']) < response_less_word: 
@@ -314,7 +320,7 @@ def process_chinese_medical_datasets(response_less_word: int=15) -> None:
     if exists(save_file): 
         assert delete_file(save_file)
     
-    def process_function(line: str) -> dict:
+    def process_function(line: str) -> dict | None:
         # department,title,ask,answer
         item = line.split(',') # csv文件逗号分割
         if len(item) < 4:
@@ -371,7 +377,7 @@ def process_finace_dataset(prompt_less_word: int=10, response_less_word: int=15)
         repair_line_error_csv_file(finace_data_file, save_suffix=suffix, read_encoding='utf-8')
 
     
-    def process_function(line: str) -> dict:
+    def process_function(line: str) -> dict | None:
         # title,prompt,reply,is_best
         item = line.split(',') # csv文件逗号分割
         if len(item) < 4:
@@ -510,7 +516,7 @@ def process_belle_knowledge_enhanced_dataset(response_less_words: int=15, group_
     if exists(save_file): 
         assert delete_file(save_file)
 
-    def process_function(line: str) -> dict:
+    def process_function(line: str) -> dict | None:
         '''
         每行的处理函数
         '''
@@ -843,7 +849,7 @@ def count_my_json_data() -> None:
     统计目前的所有数据集数据量
     '''
     my_data_files = get_path_of_suffix_files(str(DATA_DIR / 'my_data'), '.json')
-    result = [['file_name', 'count']]
+    result: list[list[str | int]] = [['file_name', 'count']]
     all_cnt = 0
     for file in my_data_files:
         file_name = file.split('/')[-1]
@@ -863,14 +869,14 @@ def count_my_json_data() -> None:
     table = Table(show_header=True, show_lines=True,)
 
     for col in result[0]:
-        table.add_column(col)
+        table.add_column(str(col))
     for i in range(1, len(result)): # 跳过表头
         table.add_row(str(result[i][0]), str(result[i][1]))
 
     console.print(table)
 
 
-def count_my_parquet_data(parquet_file: str=None) -> None:
+def count_my_parquet_data(parquet_file: str | None = None) -> None:
     '''
     统计dir目录下所有parquet数据集数据量
     '''
@@ -884,7 +890,7 @@ def count_my_parquet_data(parquet_file: str=None) -> None:
         my_data_files = [parquet_file]
         
 
-    result = [['file_name', 'count']]
+    result: list[list[str | int]] = [['file_name', 'count']]
     all_cnt = 0
     for file in my_data_files:
         file_name = file.split('/')[-1]
@@ -905,7 +911,7 @@ def count_my_parquet_data(parquet_file: str=None) -> None:
     table = Table(show_header=True, show_lines=True,)
 
     for col in result[0]:
-        table.add_column(col)
+        table.add_column(str(col))
     for i in range(1, len(result)): # 跳过表头
         table.add_row(str(result[i][0]), str(result[i][1]))
 
@@ -985,7 +991,7 @@ def parquet_to_text(sep='[SEP]', buffer_size: int=50000) -> None:
     cur_rows = []
     append = cur_rows.append
     with open(txt_file, 'a', encoding='utf-8') as f_write:
-        for pf_chunk in progress.track(source_pf):
+        for pf_chunk in progress.track(source_pf):  # pyright: ignore[reportArgumentType]
             for rows in pf_chunk.iter_row_groups():
                 for prompt, response in zip(rows['prompt'], rows['response']):
                     append(prompt + sep + response + sep + '\n')
@@ -1014,7 +1020,7 @@ def parquet_to_json() -> None:
     cur_rows = []
     append = cur_rows.append
    
-    for pf_chunk in progress.track(source_pf):
+    for pf_chunk in progress.track(source_pf):  # pyright: ignore[reportArgumentType]
         for rows in pf_chunk.iter_row_groups():
             for prompt, response in zip(rows['prompt'], rows['response']):
                 if len(response) == 0 or len(prompt) == 0: continue
@@ -1112,7 +1118,7 @@ def process_belle_knowledge_enhanced_dataset_for_finetune(max_len: int=320, grou
     if exists(save_file): 
         assert delete_file(save_file)
 
-    def process_function(line: str) -> dict:
+    def process_function(line: str) -> dict | None:
         '''
         每行的处理函数
         '''

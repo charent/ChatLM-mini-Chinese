@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import os
 import time
+from typing import cast
 
 import pandas as pd
 import torch
@@ -39,7 +40,7 @@ def sft_train(config: SFTConfig, resume_from_checkpoint: bool = False) -> None:
     # step 2. 加载预训练模型
     if os.path.isdir(config.finetune_from_ckp_file):
         # 传入文件夹则 from_pretrained
-        model = TextToTextModel.from_pretrained(config.finetune_from_ckp_file)
+        model = cast(TextToTextModel, TextToTextModel.from_pretrained(config.finetune_from_ckp_file))
     else:
         # load_state_dict
         t5_config = get_T5_config(
@@ -75,7 +76,7 @@ def sft_train(config: SFTConfig, resume_from_checkpoint: bool = False) -> None:
         logging_steps=config.logging_steps,
         num_train_epochs=config.num_train_epochs,
         optim="adafactor",
-        report_to="tensorboard",
+        report_to=["tensorboard"],
         log_level="info",
         save_steps=config.save_steps,
         save_total_limit=3,
@@ -92,9 +93,9 @@ def sft_train(config: SFTConfig, resume_from_checkpoint: bool = False) -> None:
 
     # Step 7: 定义 Trainer
     trainer = Seq2SeqTrainer(
-        model=model,
+        model=model,  # pyright: ignore[reportArgumentType]  # transformers 存根的 PreTrainedModel 泛型不匹配
         args=training_args,
-        train_dataset=dataset,
+        train_dataset=dataset,  # pyright: ignore[reportArgumentType]  # transformers 存根的 Dataset 泛型不匹配
         tokenizer=tokenizer,
         data_collator=collator,
         callbacks=[empty_cuda_cache],

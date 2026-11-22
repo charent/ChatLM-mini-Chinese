@@ -77,26 +77,28 @@ def train_my_huggingface_wiki_tokenizer(
         tokenizer = Tokenizer(model)
 
         # 用兼容等价分解合并对utf编码进行等价组合，比如全角A转换为半角A
-        tokenizer.normalizer = tokenizers.normalizers.Sequence([NFKC()])
+        # tokenizers 存根未导出 normalizers，且未声明属性 setter
+        tokenizer.normalizer = tokenizers.normalizers.Sequence([NFKC()])  # pyright: ignore[reportAttributeAccessIssue]
 
         # 标点符号，数字，及Metaspace预分割（否则decode出来没有空格）
-        tokenizer.pre_tokenizer = tokenizers.pre_tokenizers.Sequence([Punctuation(), Digits(individual_digits=True), Metaspace()])
+        tokenizer.pre_tokenizer = tokenizers.pre_tokenizers.Sequence([Punctuation(), Digits(individual_digits=True), Metaspace()])  # pyright: ignore[reportAttributeAccessIssue]
 
         tokenizer.add_special_tokens(special_tokens)
-        tokenizer.decoder = decoders.Metaspace()
+        tokenizer.decoder = decoders.Metaspace()  # pyright: ignore[reportAttributeAccessIssue]
     elif token_type == "byte":
         # byte BPE 不需要 unk_token
         model = BPE()
         tokenizer = Tokenizer(model)
-        tokenizer.pre_tokenizer = tokenizers.pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=True)
+        tokenizer.pre_tokenizer = tokenizers.pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=True)  # pyright: ignore[reportAttributeAccessIssue]
 
         tokenizer.add_special_tokens(special_tokens)
-        tokenizer.decoder = decoders.ByteLevel(add_prefix_space=False, use_regex=True)
-        tokenizer.post_processor = tokenizers.processors.ByteLevel(trim_offsets=False)
+        tokenizer.decoder = decoders.ByteLevel(add_prefix_space=False, use_regex=True)  # pyright: ignore[reportAttributeAccessIssue, reportCallIssue]
+        tokenizer.post_processor = tokenizers.processors.ByteLevel(trim_offsets=False)  # pyright: ignore[reportAttributeAccessIssue]
     else:
         raise ValueError(f"token type must be `char` or `byte`, but got {token_type}")
 
-    trainer = BpeTrainer(vocab_size=vocab_size, min_frequency=100, show_progress=True, special_tokens=special_tokens)
+    # tokenizers 存根未声明 BpeTrainer 的关键字参数，故整行抑制
+    trainer = BpeTrainer(vocab_size=vocab_size, min_frequency=100, show_progress=True, special_tokens=special_tokens)  # pyright: ignore[reportCallIssue]
     tokenizer.train_from_iterator(get_training_corpus(), trainer=trainer)
 
     # add \t \n
@@ -133,7 +135,8 @@ def train_my_BPE_tokenizer(corpus_file: str | None = None, vocab_size: int = 409
     txt_corpus_file = corpus_file or str(DATA_DIR / "my_corpus.txt")
     special_tokens = ["[PAD]", "[CLS]", "[SEP]", "[MASK]", "[UNK]"]
 
-    spm.SentencePieceTrainer.train(
+    # sentencepiece 存根未声明该静态方法
+    spm.SentencePieceTrainer.train(  # pyright: ignore[reportAttributeAccessIssue]
         input=txt_corpus_file,
         model_prefix=str(ARTIFACT_DIR / "my_tokenizer"),
         vocab_size=vocab_size,

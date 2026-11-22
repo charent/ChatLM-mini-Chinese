@@ -66,6 +66,7 @@ dev = [
     "ipykernel>=6.29.0",
     "jupyterlab>=4.0.0",
     "pre-commit>=3.6.0",
+    "pyright==1.1.414",
     "pytest>=7.4.0",
     "ruff==0.17.6",
 ]
@@ -122,3 +123,15 @@ quote-style = "double"
 testpaths = ["tests"]
 addopts = "-ra"
 pythonpath = ["src"]
+
+[tool.pyright]
+include = ["src", "tests"]
+exclude = ["**/__pycache__", "**/.venv", "artifacts", "notebook", "data", "finetune_examples"]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.10"
+typeCheckingMode = "basic"
+# 说明：transformers / datasets / accelerate / peft / tokenizers / trl 的类型存根不完整，
+# 相关误报一律在具体代码行用 `# pyright: ignore[rule]` 精准抑制并注明原因，
+# 不要在此处整体关闭规则。
+reportMissingTypeStubs = false

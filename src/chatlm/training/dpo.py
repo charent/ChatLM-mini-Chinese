@@ -12,11 +12,12 @@ import argparse
 import os
 import time
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 import torch
 from datasets import Dataset, load_dataset
-from peft import LoraConfig, PeftModel, TaskType
+from peft import LoraConfig, PeftModel, TaskType  # pyright: ignore[reportPrivateImportUsage]  # peft 未在 __all__ 中导出
 from transformers import PreTrainedTokenizerFast, TrainingArguments
 from trl import DPOTrainer
 
@@ -49,21 +50,21 @@ def build_dpo_dataset(file: str, split: str, cache_dir: str | None = None) -> Da
             "rejected": f"{sample['rejected']}[EOS]",
         }
 
-    return dataset.map(split_prompt_and_responses).shuffle(2333)
+    return cast(Dataset, dataset.map(split_prompt_and_responses).shuffle(2333))
 
 
 def _load_sft_model(config: DpoConfig, tokenizer: PreTrainedTokenizerFast) -> TextToTextModel:
     """加载 SFT 权重（目录或单文件）。"""
     if os.path.isdir(config.sft_model_file):
         # 传入文件夹则 from_pretrained
-        return TextToTextModel.from_pretrained(config.sft_model_file)
+        return cast(TextToTextModel, TextToTextModel.from_pretrained(config.sft_model_file))
 
     # load_state_dict
     t5_config = get_T5_config(
         T5ModelConfig(),
         vocab_size=len(tokenizer),
-        decoder_start_token_id=tokenizer.pad_token_id,
-        eos_token_id=tokenizer.eos_token_id,
+        decoder_start_token_id=int(tokenizer.pad_token_id or 0),
+        eos_token_id=int(tokenizer.eos_token_id or 0),
     )
     model = TextToTextModel(t5_config)
     model.load_state_dict(torch.load(config.sft_model_file, map_location="cpu"))  # set cpu for no exception
@@ -99,7 +100,7 @@ def train_dpo(config: DpoConfig, peft_config: LoraConfig | None = None) -> None:
         save_steps=config.save_steps,
         output_dir=config.output_dir,
         optim="adafactor",
-        report_to="tensorboard",
+        report_to=["tensorboard"],
         log_level="info",
         warmup_steps=config.warmup_steps,
         bf16=False,
@@ -112,7 +113,7 @@ def train_dpo(config: DpoConfig, peft_config: LoraConfig | None = None) -> None:
     dpo_trainer = DPOTrainer(
         model_train,
         model_ref,
-        peft_config=peft_config,
+        peft_config=peft_config,  # pyright: ignore[reportArgumentType]  # peft 存根把配置声明为 dict
         args=training_args,
         beta=config.beta,
         train_dataset=train_dataset,
@@ -162,7 +163,7 @@ def merge_lora_weight_into_model(config: DpoConfig, peft_config: LoraConfig) -> 
     # 3. load adapter
     print(f"load adapter from dir: {adapter_save_dir}")
 
-    peft_model.load_adapter(model_id=str(adapter_save_dir), adapter_name="adapter")
+    peft_model.load_adapter(str(adapter_save_dir), "adapter")
 
     # 4. merge
     merged_model = peft_model.merge_and_unload()

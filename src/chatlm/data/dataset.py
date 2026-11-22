@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from typing import Any, cast
+
 import numpy as np
 import pyarrow.parquet as pq
 from datasets import Dataset as HFDataset, load_dataset
@@ -62,7 +65,7 @@ class MyDataset(Dataset):
         # 在这里初始化generator
         self.sample_generator = self.item_generator()
 
-    def item_generator(self) -> tuple:
+    def item_generator(self) -> Iterator[tuple[str, str]]:
         """一条数据的生成器，防止大数据集 OOM。"""
         parquet_table = self.data
 
@@ -134,21 +137,26 @@ def build_seq2seq_dataset(
         file_format: ``json`` 或 ``parquet``
         cache_dir: datasets 缓存目录，默认使用 HuggingFace 默认缓存
     """
-    dataset = load_dataset(file_format, data_files=file, split=split, cache_dir=cache_dir)
+    # load_dataset 在传入 split 时返回 Dataset，但存根声明为四类联合类型
+    dataset = cast(HFDataset, load_dataset(file_format, data_files=file, split=split, cache_dir=cache_dir))
+    column_names: list[str] = list(dataset.column_names)
 
-    def tokens_to_ids(samples: dict) -> dict[str, list]:
+    def tokens_to_ids(samples: dict[str, Any]) -> dict[str, list[Any]]:
         eos_token_id = tokenizer.eos_token_id
 
         encoded_prompt = tokenizer(samples["prompt"], truncation=False, padding=False, return_attention_mask=False)
         encoded_response = tokenizer(samples["response"], truncation=False, padding=False, return_attention_mask=False)
 
         # vocab size 小于65535 可以用 uint16, 每个样本都要添加eos_token_id
-        input_ids = [np.array(item + [eos_token_id], dtype=np.uint16) for item in encoded_prompt["input_ids"]]
-        labels = [np.array(item + [eos_token_id], dtype=np.uint16) for item in encoded_response["input_ids"]]
+        input_ids = [np.array(item + [eos_token_id], dtype=np.uint16) for item in encoded_prompt.input_ids]
+        labels = [np.array(item + [eos_token_id], dtype=np.uint16) for item in encoded_response.input_ids]
 
         return {"input_ids": input_ids, "labels": labels}
 
-    return dataset.map(tokens_to_ids, batched=True, batch_size=8192, remove_columns=dataset.column_names)
+    return cast(
+        HFDataset,
+        dataset.map(tokens_to_ids, batched=True, batch_size=8192, remove_columns=column_names),
+    )
 
 
 def main() -> None:

@@ -70,13 +70,20 @@ docs/img/             # 文档配图
 uv run ruff format .
 uv run ruff check . --fix
 uv run ruff check .
+uv run pyright          # 目标：0 error / 0 warning
 uv run pytest -q
 ```
 
+- **pyright 目标 0 error**：配置见 `pyproject.toml` 的 `[tool.pyright]`（`typeCheckingMode = "basic"`、
+  `include = ["src", "tests"]`、`venv = ".venv"`、`pythonVersion = "3.10"`）。
+  新增/修改的函数必须写参数与返回类型注解。
+- 第三方库（transformers / datasets / accelerate / peft / tokenizers / trl / datasketch）的存根不完整时，
+  用**行级** `# pyright: ignore[reportXxx]` 精准抑制并写清原因，**禁止**在 `pyproject.toml` 里整体关闭
+  `reportArgumentType`、`reportAttributeAccessIssue` 等规则来"通过"检查。
 - ruff 版本固定在 dev 依赖中（`ruff==0.17.6`），规则与例外理由写在 `pyproject.toml`
   的注释里，**不要为迎合检查而放宽规则**。
 - 提交前可选安装钩子：`uv run pre-commit install`（配置见 `.pre-commit-config.yaml`）。
-- CI 见 `.github/workflows/ci.yml`：lint（ruff）与 test（pytest）两个 job，不跑训练。
+- CI 见 `.github/workflows/ci.yml`：lint（ruff + pyright）与 test（pytest）两个 job，不跑训练。
 
 ## 注意事项
 

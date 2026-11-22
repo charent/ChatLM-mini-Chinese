@@ -1,5 +1,6 @@
 import os
 from threading import Thread
+from typing import cast
 
 import torch
 from accelerate import init_empty_weights, load_checkpoint_and_dispatch
@@ -16,6 +17,7 @@ class ChatBot:
     def __init__(self, infer_config: InferConfig) -> None:
         """ """
         self.infer_config = infer_config
+        self.model: TextToTextModel
         # 初始化tokenizer
         tokenizer = PreTrainedTokenizerFast.from_pretrained(infer_config.model_dir)
         self.tokenizer = tokenizer
@@ -32,7 +34,7 @@ class ChatBot:
 
             if os.path.isdir(infer_config.model_dir):
                 # from_pretrained
-                model = model.from_pretrained(infer_config.model_dir)
+                model = cast(TextToTextModel, TextToTextModel.from_pretrained(infer_config.model_dir))
 
             elif infer_config.model_dir.endswith(".safetensors"):
                 # load safetensors
@@ -51,15 +53,19 @@ class ChatBot:
             with init_empty_weights():
                 empty_model = TextToTextModel(t5_config)
 
-            self.model = load_checkpoint_and_dispatch(
-                model=empty_model,
-                checkpoint=infer_config.model_dir,
-                device_map="auto",
-                dtype=torch.float16,
+            self.model = cast(
+                TextToTextModel,
+                load_checkpoint_and_dispatch(
+                    model=empty_model,
+                    checkpoint=infer_config.model_dir,
+                    device_map="auto",
+                    dtype=torch.float16,
+                ),
             )
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model.to(self.device)
+        # transformers / accelerate 存根对 from_pretrained 返回值的推断不稳定，这里按 nn.Module 接口调用
+        self.model.to(self.device)  # pyright: ignore[reportArgumentType]
 
         self.streamer = TextIteratorStreamer(tokenizer=tokenizer, clean_up_tokenization_spaces=True, skip_special_tokens=True)
 

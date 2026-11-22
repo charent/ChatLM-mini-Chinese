@@ -3,6 +3,7 @@ import os
 import platform
 import signal
 import sys
+from typing import cast
 
 import numpy as np
 import torch
@@ -12,6 +13,7 @@ from accelerate import Accelerator
 from accelerate.utils import set_seed
 from psutil import virtual_memory
 from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn, TimeRemainingColumn
+from torch import Tensor
 from torch.utils.data import DataLoader
 from torch_optimizer import Adafactor
 from transformers import PreTrainedTokenizerFast
@@ -230,7 +232,7 @@ class ChatTrainer:
         optimizer = Adafactor(params=model.parameters(), lr=train_config.learn_rate)
 
         # 获取当前机器有多少个GPU，默认全部使用
-        num_gpus_used = accelerator.state.num_processes
+        num_gpus_used = accelerator.num_processes
 
         # 单机多卡，每个step总共的batch_size = batch_size_per_gpu * num_gpus_used
         # total_batch_size 初始化为batch_size_per_gpu真的只有CPU的情况
@@ -429,8 +431,8 @@ class ChatTrainer:
                 )
 
                 # gather data from multi-gpus (used when in ddp mode)
-                outputs = accelerator.gather_for_metrics(outputs).detach().cpu().numpy()
-                target_ids = accelerator.gather_for_metrics(target_ids).detach().cpu().numpy()
+                outputs = cast(Tensor, accelerator.gather_for_metrics(outputs)).detach().cpu().numpy()
+                target_ids = cast(Tensor, accelerator.gather_for_metrics(target_ids)).detach().cpu().numpy()
 
                 outputs = batch_decode(outputs, skip_special_tokens=True, clean_up_tokenization_spaces=False)
                 target_ids = batch_decode(target_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)
@@ -449,7 +451,7 @@ class ChatTrainer:
 
         return avg_bleu4_score
 
-    def test(self, best_epoch: int = 0) -> None:
+    def test(self, best_epoch: int = 0) -> float:
         """ """
         import os
 
@@ -483,7 +485,7 @@ class ChatTrainer:
         log.info(f"using device: {str(device)} ", save_to_file=True)
 
         # 获取当前运行使用了多少个GPU
-        num_gpus_used = accelerator.state.num_processes
+        num_gpus_used = accelerator.num_processes
 
         # 单机多卡，每个step总共的batch_size = batch_size_per_gpu * num_gpus_used
         # total_batch_size 初始化为batch_size_per_gpu真的只有CPU的情况
@@ -550,8 +552,8 @@ class ChatTrainer:
                 # accelerator.print('generate used: {}'.format(time.time() - s))
 
                 # gather data from multi-gpus (used when in ddp mode)
-                outputs = accelerator.gather_for_metrics(outputs).cpu().numpy()
-                target_ids = accelerator.gather_for_metrics(target_ids).cpu().numpy()
+                outputs = cast(Tensor, accelerator.gather_for_metrics(outputs)).cpu().numpy()
+                target_ids = cast(Tensor, accelerator.gather_for_metrics(target_ids)).cpu().numpy()
 
                 outputs = batch_decode(outputs, skip_special_tokens=True, clean_up_tokenization_spaces=False)
                 target_ids = batch_decode(target_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)
@@ -574,7 +576,7 @@ class ChatTrainer:
 
         return avg_bleu4_score
 
-    def print_and_log(self, info: str, accelerator: Accelerator = None) -> None:
+    def print_and_log(self, info: str, accelerator: Accelerator | None = None) -> None:
         """
         使用accelerator.print, 否则多进程打印会异常
         """

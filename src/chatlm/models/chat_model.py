@@ -1,5 +1,7 @@
+from typing import cast
+
 import torch
-from torch import LongTensor, Tensor
+from torch import Tensor
 from transformers import T5Config, T5ForConditionalGeneration, TextIteratorStreamer
 from transformers.generation.configuration_utils import GenerationConfig
 
@@ -14,11 +16,11 @@ class TextToTextModel(T5ForConditionalGeneration):
     @torch.no_grad()
     def my_generate(
         self,
-        input_ids: LongTensor,
-        attention_mask: LongTensor,
+        input_ids: Tensor,
+        attention_mask: Tensor,
         max_seq_len: int = 256,
         search_type: str = "beam",
-        streamer: TextIteratorStreamer = None,
+        streamer: TextIteratorStreamer | None = None,
     ) -> Tensor:
         """
         自定义gennerate方法方便调用、测试
@@ -72,4 +74,6 @@ class TextToTextModel(T5ForConditionalGeneration):
             streamer=streamer,
         )
 
-        return result
+        # transformers 的 generate 存根返回 GenerateOutput 联合类型，
+        # 在 greedy/beam 且不返回 scores 时实际为 LongTensor。
+        return cast(Tensor, result)

@@ -35,7 +35,7 @@ class DropDatasetDuplicate:
         self.data_lsh = MinHashLSH(threshold=threshold, num_perm=num_perm)
         self.num_perm = num_perm
 
-    def add_doc(self, index: object, doc: str) -> None:
+    def add_doc(self, index: int, doc: str) -> None:
         """添加文档。
 
         index: 文档的索引
@@ -51,7 +51,8 @@ class DropDatasetDuplicate:
 
         # 所有相似的 doc 在 similar_index_cluster 中的 key 都是最早出现的 idx
         if len(close_duplicates) > 0:
-            min_idx = min(close_duplicates)
+            # MinHashLSH.query 返回 list[str]，需转回 int 索引
+            min_idx = min(int(str(item)) for item in close_duplicates)
             self.similar_index_cluster[min_idx].add(index)
 
     def get_duplicate_indexs(self) -> set[int]:
