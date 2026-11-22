@@ -83,7 +83,7 @@ If you need to do retrieval augmented generation (RAG) based on small models, yo
 
 # 2. 🛠️ChatLM-0.2B-Chinese model training process
 ## 2.1 Pre-training dataset
-All datasets come from the **Single Round Conversation** dataset published on the Internet. After data cleaning and formatting, they are saved as parquet files. For the data processing process, see `utils/raw_data_process.py`. Main datasets include:
+All datasets come from the **Single Round Conversation** dataset published on the Internet. After data cleaning and formatting, they are saved as parquet files. For the data processing process, see `src/chatlm/data/raw.py`. Main datasets include:
 
 1. Community Q&A json version webtext2019zh-large-scale high-quality dataset, see: [nlp_chinese_corpus](https://github.com/brightmart/nlp_chinese_corpus). A total of 4.1 million, with 2.6 million remaining after cleaning.
 2. baike_qa2019 encyclopedia Q&A, see: <https://aistudio.baidu.com/datasetdetail/107726>, a total of 1.4 million, and the remaining 1.3 million after waking up.
@@ -122,21 +122,21 @@ GPU: NVIDIA GeForce RTX 4060 Ti 16GB * 1
 1. **tokenizer training**: The existing `tokenizer` training library has OOM problems when encountering large corpus. Therefore, the full corpus is merged and constructed according to word frequency according to a method similar to `BPE`, and the operation takes half a day.
    
 2. **Text-to-Text pre-training**: The learning rate is a dynamic learning rate from `1e-4` to `5e-3`, and the pre-training time is 8 days. Training loss:
-![traing loss](img/train_loss.png)
+![traing loss](docs/img/train_loss.png)
 
 3. **prompt supervised fine-tuning (SFT)**: Use the `belle` instruction training dataset (both instruction and answer lengths are below 512), with a dynamic learning rate from `1e-7` to `5e-5` , the fine-tuning time is 2 days. Fine-tuning loss:
-![finetune loss](img/sft_loss.png)
+![finetune loss](docs/img/sft_loss.png)
 
 4. **dpo direct preference optimization（RLHF）**: dataset [alpaca-gpt4-data-zh](https://huggingface.co/datasets/c-s-ale/alpaca-gpt4-data-zh) as `chosen` text , in step `2`, the SFT model performs batch `generate` on the prompts in the dataset, and obtains the `rejected` text, which takes 1 day, dpo full preference optimization, learning rate `le-5`, half precision `fp16`, total `2` `epoch`, taking 3h. dpo loss:
-![dpo loss](img/dpo_loss.png)
+![dpo loss](docs/img/dpo_loss.png)
 
 ## 2.4 chat show
 ### 2.4.1 stream chat
-By default, `TextIteratorStreamer` of `huggingface transformers` is used to implement streaming dialogue, and only `greedy search` is supported. If you need `beam sample` and other generation methods, please change the `stream_chat` parameter of `cli_demo.py` to `False` .
-![](./img/stream_chat.gif)
+By default, `TextIteratorStreamer` of `huggingface transformers` is used to implement streaming dialogue, and only `greedy search` is supported. To disable streaming, pass `--no-stream` to `chatlm-cli`.
+![](./docs/img/stream_chat.gif)
 
 ### 2.4.2 Dialogue show
-![](./img/show1.png)
+![](./docs/img/show1.png)
 
 There are problems: the pre-training dataset only has more than 9 million, and the model parameters are only 0.2B. It cannot cover all aspects, and there will be situations where the answer is wrong and the generator is nonsense.
 
@@ -146,26 +146,26 @@ There are problems: the pre-training dataset only has more than 9 million, and t
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import torch
 
-model_id = 'charent/ChatLM-mini-Chinese'
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model_id = "charent/ChatLM-mini-Chinese"
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# 如果无法连接huggingface，打开以下两行代码的注释，将从modelscope下载模型文件，模型文件保存到'./model_save'目录
+# 如果无法连接huggingface，打开以下两行代码的注释，将从modelscope下载模型文件，模型文件保存到'./artifacts'目录
 # from modelscope import snapshot_download
-# model_id = snapshot_download(model_id, cache_dir='./model_save')
+# model_id = snapshot_download(model_id, cache_dir='./artifacts')
 
 tokenizer = AutoTokenizer.from_pretrained(model_id)
 model = AutoModelForSeq2SeqLM.from_pretrained(model_id, trust_remote_code=True).to(device)
 
-txt = '如何评价Apple这家公司？'
+txt = "如何评价Apple这家公司？"
 
 encode_ids = tokenizer([txt])
-input_ids, attention_mask = torch.LongTensor(encode_ids['input_ids']), torch.LongTensor(encode_ids['attention_mask'])
+input_ids, attention_mask = torch.LongTensor(encode_ids["input_ids"]), torch.LongTensor(encode_ids["attention_mask"])
 
 outs = model.my_generate(
     input_ids=input_ids.to(device),
     attention_mask=attention_mask.to(device),
     max_seq_len=256,
-    search_type='beam',
+    search_type="beam",
 )
 
 outs_txt = tokenizer.batch_decode(outs.cpu().numpy(), skip_special_tokens=True, clean_up_tokenization_spaces=True)
@@ -219,8 +219,8 @@ uv sync --group dev
 3. Run the project (`uv run` uses the interpreter from `.venv`):
 
 ```bash
-uv run cli_demo.py
-uv run api_demo.py
+uv run chatlm-cli
+uv run chatlm-api
 ```
 
 Every `python xxx.py` command below can be replaced with `uv run python xxx.py`, or you can activate the environment first (Windows: `.venv\Scripts\activate`, Linux/macOS: `source .venv/bin/activate`) and keep using `python`.
@@ -238,10 +238,10 @@ git clone --depth 1 https://huggingface.co/charent/ChatLM-mini-Chinese
 # If unable to connect huggingface, please download from modelscope
 git clone --depth 1 https://www.modelscope.cn/charent/ChatLM-mini-Chinese.git
 
-mv ChatLM-mini-Chinese model_save
+mv ChatLM-mini-Chinese artifacts
 ```
 
-You can also manually download it directly from the `Hugging Face Hub` warehouse [ChatLM-mini-Chinese](https://huggingface.co/charent/ChatLM-mini-Chinese) and move the downloaded file to the `model_save` directory. .
+You can also manually download it directly from the `Hugging Face Hub` warehouse [ChatLM-mini-Chinese](https://huggingface.co/charent/ChatLM-mini-Chinese) and move the downloaded file to the `artifacts` directory. .
     
 
 ## 3.3 Tokenizer training
@@ -256,11 +256,11 @@ Since training tokenizer consumes a lot of memory, if your corpus is very large 
 
 2. train tokenizer
 
-The difference between `char level` and `byte level` is as follows (Please search for information on your own for specific differences in use.). The tokenizer of `char level` is trained by default. If `byte level` is required, just set `token_type='byte'` in `train_tokenizer.py`.
+The difference between `char level` and `byte level` is as follows (Please search for information on your own for specific differences in use.). The tokenizer of `char level` is trained by default. If `byte level` is required, just pass `--token-type byte` to `chatlm-tokenizer`.
 
 ```python
 # original text
-txt = '这是一段中英混输的句子, （chinese and English, here are words.）'
+txt = "这是一段中英混输的句子, （chinese and English, here are words.）"
 
 tokens = charlevel_tokenizer.tokenize(txt)
 print(tokens)
@@ -275,9 +275,12 @@ print(tokens)
 
 Start training：
 
-```python
+```bash
 # Make sure your training corpus `txt` file is in the data directory
-python train_tokenizer.py
+uv run chatlm-tokenizer
+
+# or specify arguments explicitly
+uv run chatlm-tokenizer --corpus-file data/wiki.simple.txt --token-type char --vocab-size 40960
 ```
 
 ## 3.4 Text-to-Text pre-training
@@ -291,7 +294,7 @@ python train_tokenizer.py
 
 2. jupyter-lab or jupyter notebook:
 
-     See the file `train.ipynb`. It is recommended to use jupyter-lab to avoid considering the situation where the terminal process is killed after disconnecting from the server.
+     See the file `notebook/train.ipynb`. It is recommended to use jupyter-lab to avoid considering the situation where the terminal process is killed after disconnecting from the server.
 
 3. Console:
 
@@ -302,37 +305,37 @@ python train_tokenizer.py
      accelerate config
      ```
 
-     Start training. If you want to use the configuration provided by the project, please add the parameter `--config_file ./accelerate.yaml` after the following command `accelerate launch`. *This configuration is based on the single-machine 2xGPU configuration.*  
+     Start training. If you want to use the configuration provided by the project, please add the parameter `--config_file configs/accelerate.yaml` after the following command `accelerate launch`. *This configuration is based on the single-machine 2xGPU configuration.*  
 
-     *There are two scripts for pre-training. The trainer implemented in this project corresponds to `train.py`, and the trainer implemented by huggingface corresponds to `pre_train.py`. You can use either one and the effect will be the same. The training information display of the trainer implemented in this project is more beautiful, and it is easier to modify the training details (such as loss function, log records, etc.). All support checkpoint to continue training. The trainer implemented in this project supports continuing training after a breakpoint at any position. Press ` ctrl+c` will save the breakpoint information when exiting the script.*
+     *There are two scripts for pre-training. The trainer implemented in this project corresponds to `chatlm train` (`src/chatlm/training/accelerate_trainer.py`), and the trainer implemented by huggingface corresponds to `chatlm pretrain` (`src/chatlm/training/pretrain.py`). You can use either one and the effect will be the same. The training information display of the trainer implemented in this project is more beautiful, and it is easier to modify the training details (such as loss function, log records, etc.). All support checkpoint to continue training. The trainer implemented in this project supports continuing training after a breakpoint at any position. Press ` ctrl+c` will save the breakpoint information when exiting the script.*
 
      Single machine and single card:
      ```bash
      # The trainer implemented in this project
-     accelerate launch ./train.py train
+     accelerate launch -m chatlm.training.accelerate_trainer train
 
      # Or use huggingface trainer
-    accelerate launch --multi_gpu --num_processes 2 pre_train.py
+    accelerate launch --multi_gpu --num_processes 2 -m chatlm.training.pretrain
      ```
 
      Single machine with multiple GPUs:
      '2' is the number of gpus, please modify it according to your actual situation.
      ```bash
      # The trainer implemented in this project
-     accelerate launch --multi_gpu --num_processes 2 ./train.py train
+     accelerate launch --multi_gpu --num_processes 2 -m chatlm.training.accelerate_trainer train
 
      # Or use huggingface trainer
-    accelerate launch --multi_gpu --num_processes 2 pre_train.py
+    accelerate launch --multi_gpu --num_processes 2 -m chatlm.training.pretrain
      ```
 
      Continue training from the breakpoint:
      ```bash
      # The trainer implemented in this project
-     accelerate launch --multi_gpu --num_processes 2 ./train.py train --is_keep_training=True
+     accelerate launch --multi_gpu --num_processes 2 -m chatlm.training.accelerate_trainer train --is_keep_training=True
 
      # Or use huggingface trainer
-     # You need to add `resume_from_checkpoint=True` to the `train` function in `pre_train.py`
-     python pre_train.py
+     # add `--resume-from-checkpoint` to resume training
+     uv run chatlm pretrain
      ```
 
 ## 3.5 Supervised Fine-tuning, SFT
@@ -347,15 +350,15 @@ Example of fine-tuning dataset with sft command:
 }
 ```
 Make your own dataset by referring to the sample `parquet` file in the `data` directory. The dataset format is: the `parquet` file is divided into two columns, one column of `prompt` text, representing the prompt, and one column of `response` text, representing the expected model. output.
-For fine-tuning details, see the `train` method under `model/trainer.py`. When `is_finetune` is set to `True`, fine-tuning will be performed. Fine-tuning will freeze the embedding layer and encoder layer by default, and only train the decoder layer. If you need to freeze other parameters, please adjust the code yourself.
+For fine-tuning details, see the `train` method under `src/chatlm/training/accelerate_trainer.py`. When `is_finetune` is set to `True`, fine-tuning will be performed. Fine-tuning will freeze the embedding layer and encoder layer by default, and only train the decoder layer. If you need to freeze other parameters, please adjust the code yourself.
 
 Run SFT fine-tuning:
 ```bash
 # For the trainer implemented in this project, just add the parameter `--is_finetune=True`. The parameter `--is_keep_training=True` can continue training from any breakpoint.
-accelerate launch --multi_gpu --num_processes 2 ./train.py --is_finetune=True
+accelerate launch --multi_gpu --num_processes 2 -m chatlm.training.accelerate_trainer train --is-finetune
 
 # Or use huggingface trainer
-python sft_train.py
+uv run chatlm sft
 ```
 
 ## 3.6 RLHF (Reinforcement Learning Human Feedback Optimization Method)
@@ -370,7 +373,7 @@ Here are two common preferred methods: PPO and DPO. Please search papers and blo
 2. Use DPO (Direct Preference Optimization) fine-tuning (**This project uses the DPO fine-tuning method, which saves GPU memory**)
      On the basis of obtaining the SFT model, there is no need to train the reward model, and fine-tuning can be started by obtaining the positive answer (chosen) and the negative answer (rejected). The fine-tuned `chosen` text comes from the original dataset [alpaca-gpt4-data-zh](https://huggingface.co/datasets/c-s-ale/alpaca-gpt4-data-zh), and the rejected text `rejected` comes from SFT Model output after fine-tuning 1 epoch, two other datasets: [huozi_rlhf_data_json](https://huggingface.co/datasets/Skepsun/huozi_rlhf_data_json) and [rlhf-reward-single-round-trans_chinese](https:// huggingface.co/datasets/beyond/rlhf-reward-single-round-trans_chinese), a total of 80,000 dpo data after the merger.
     
-     For the dpo dataset processing process, see `utils/dpo_data_process.py`.
+     For the dpo dataset processing process, see `src/chatlm/data/dpo.py`.
     
 DPO preference optimization dataset example:
 ```json
@@ -382,14 +385,14 @@ DPO preference optimization dataset example:
 ```
 Run preference optimization:
 ```bash
-pythondpo_train.py
+uv run chatlm dpo train
 ```
 
 ## 3.7 Infering
-Make sure there are the following files in the `model_save` directory, These files can be found in the `Hugging Face Hub` repository [ChatLM-Chinese-0.2B](https://huggingface.co/charent/ChatLM-mini-Chinese)::
+Make sure there are the following files in the `artifacts` directory, These files can be found in the `Hugging Face Hub` repository [ChatLM-Chinese-0.2B](https://huggingface.co/charent/ChatLM-mini-Chinese)::
 ```bash
 ChatLM-mini-Chinese
-├─model_save
+├─artifacts
 |  ├─config.json
 |  ├─configuration_chat_model.py
 |  ├─generation_config.json
@@ -402,12 +405,12 @@ ChatLM-mini-Chinese
 
 1. Console run:
 ```bash
-python cli_demo.py
+uv run chatlm-cli
 ```
 
 2. API call
 ```bash
-python api_demo.py
+uv run chatlm-api
 ```
 
 API call example:
@@ -420,7 +423,7 @@ curl --location '127.0.0.1:8812/api/chat' \
     "input_txt": "感冒了要怎么办"
 }'
 ```
-![api demo](./img/api_example.png)
+![api demo](./docs/img/api_example.png)
 
 ## 3.8 Fine-tuning of downstream tasks
 
@@ -434,9 +437,9 @@ The original dataset is: [Baidu Triplet Extraction dataset](https://aistudio.bai
 }
 ```
 
-You can directly use the `sft_train.py` script for fine-tuning. The script [finetune_IE_task.ipynb](./finetune_examples/info_extract/finetune_IE_task.ipynb) contains the detailed decoding process. The training dataset is about `17000`, the learning rate is `5e-5`, and the training epoch is `5`. The dialogue capabilities of other tasks have not disappeared after fine-tuning.
+You can directly use `chatlm-sft` for fine-tuning. The script [finetune_IE_task.ipynb](./finetune_examples/info_extract/finetune_IE_task.ipynb) contains the detailed decoding process. The training dataset is about `17000`, the learning rate is `5e-5`, and the training epoch is `5`. The dialogue capabilities of other tasks have not disappeared after fine-tuning.
 
-![Conversation ability after fine-tuning of information extraction task](./img/ie_task_chat.png)
+![Conversation ability after fine-tuning of information extraction task](./docs/img/ie_task_chat.png)
 
 Fine-tuning effects:
 The public `dev` dataset of `Baidu triple extraction dataset` is used as a test set to compare with the traditional method [pytorch_IE_model](https://github.com/charent/pytorch_IE_model).

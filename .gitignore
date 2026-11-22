@@ -10,18 +10,40 @@
 .history/
 .idea/
 
-# python cache
-*.pyc
-*.cache
+# python cache / 虚拟环境
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.cache/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.ipynb_checkpoints/
 
+# 日志
 logs/*
+artifacts/logs/
+*.log
 
+# 训练产物（tokenizer、权重、checkpoint）
+artifacts/*
+!artifacts/put_model_files_here
+
+# 数据集（保留仓库内示例样本）
 data/*
-!/data/my_train_dataset_3k.parquet
-!/data/my_test_dataset_2k.parquet
-!/data/my_valid_dataset_1k.parquet
+!data/my_train_dataset_3k.parquet
+!data/my_test_dataset_2k.parquet
+!data/my_valid_dataset_1k.parquet
 
-model_save/*
-!model_save/put_model_files_here
+# 评测数据（C-Eval / CMMLU 下载目录）
+eval/ceval-exam/
+eval/data/
+eval/result/
+eval/CMMLU/
+eval/result_0_shot/
 
 wandb/*

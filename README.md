@@ -87,7 +87,7 @@ ChatLM-mini-Chinese为中文对话小模型，模型参数只有0.2B（算共享
 # 二、🛠️ChatLM-0.2B-Chinese模型训练过程 
 
 ## 2.1 预训练数据集
-所有数据集均来自互联网公开的**单轮对话**数据集，经过数据清洗、格式化后保存为parquet文件。数据处理过程见`utils/raw_data_process.py`。主要数据集包括： 
+所有数据集均来自互联网公开的**单轮对话**数据集，经过数据清洗、格式化后保存为parquet文件。数据处理过程见`src/chatlm/data/raw.py`。主要数据集包括： 
 
 1. 社区问答json版webtext2019zh-大规模高质量数据集，见：[nlp_chinese_corpus](https://github.com/brightmart/nlp_chinese_corpus)。共410万，清洗后剩余260万。
 2. baike_qa2019百科类问答，见：<https://aistudio.baidu.com/datasetdetail/107726>，共140万，清醒后剩余130万。
@@ -126,23 +126,23 @@ CPU: Intel(R) i5-13600k @ 5.1GHz
 
 2. **Text-to-Text 预训练**：学习率为`1e-4`到`5e-3`的动态学习率，预训练时间为8天。训练损失： 
 
-![traing loss](img/train_loss.png) 
+![traing loss](docs/img/train_loss.png) 
 
 3. **prompt监督微调（SFT）**：使用`belle`指令训练数据集（指令和回答长度都在512以下），学习率为`1e-7`到`5e-5`的动态学习率，微调时间2天。微调损失： 
    
-![finetune loss](img/sft_loss.png) 
+![finetune loss](docs/img/sft_loss.png) 
 
 4. **dpo直接偏好优化（RLHF）**：数据集[alpaca-gpt4-data-zh](https://huggingface.co/datasets/c-s-ale/alpaca-gpt4-data-zh)作为`chosen`文本，步骤`2`中SFT模型对数据集中的prompt做批量`generate`，得到`rejected`文本，耗时1天，dpo全量偏好优化，学习率`le-5`，半精度`fp16`,共`2`个`epoch`，耗时3h。dpo损失： 
  
-![dpo loss](img/dpo_loss.png) 
+![dpo loss](docs/img/dpo_loss.png) 
 
 ## 2.4 对话效果展示
 ### 2.4.1 stream chat
-默认使用`huggingface transformers`的 `TextIteratorStreamer`实现流式对话，只支持`greedy search`，如果需要`beam sample`等其他生成方式，请将`cli_demo.py`的`stream_chat`参数修改为`False`。
-![](./img/stream_chat.gif)
+默认使用`huggingface transformers`的 `TextIteratorStreamer`实现流式对话，只支持`greedy search`；如需关闭流式输出，给 `chatlm-cli` 加上 `--no-stream` 参数，或修改 `src/chatlm/inference/cli.py` 中的 `stream` 参数。
+![](./docs/img/stream_chat.gif)
 
 ### 2.4.2 对话展示
-![](./img/show1.png)
+![](./docs/img/show1.png)
 
 存在问题：预训练数据集只有900多万，模型参数也仅0.2B，不能涵盖所有方面，会有答非所问、废话生成器的情况。
 
@@ -154,27 +154,27 @@ CPU: Intel(R) i5-13600k @ 5.1GHz
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import torch
 
-model_id = 'charent/ChatLM-mini-Chinese'
+model_id = "charent/ChatLM-mini-Chinese"
 
-# 如果无法连接huggingface，打开以下两行代码的注释，将从modelscope下载模型文件，模型文件保存到'./model_save'目录
+# 如果无法连接huggingface，打开以下两行代码的注释，将从modelscope下载模型文件，模型文件保存到'./artifacts'目录
 # from modelscope import snapshot_download
-# model_id = snapshot_download(model_id, cache_dir='./model_save')
+# model_id = snapshot_download(model_id, cache_dir='./artifacts')
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 tokenizer = AutoTokenizer.from_pretrained(model_id)
 model = AutoModelForSeq2SeqLM.from_pretrained(model_id, trust_remote_code=True).to(device)
 
-txt = '如何评价Apple这家公司？'
+txt = "如何评价Apple这家公司？"
 
 encode_ids = tokenizer([txt])
-input_ids, attention_mask = torch.LongTensor(encode_ids['input_ids']), torch.LongTensor(encode_ids['attention_mask'])
+input_ids, attention_mask = torch.LongTensor(encode_ids["input_ids"]), torch.LongTensor(encode_ids["attention_mask"])
 
 outs = model.my_generate(
     input_ids=input_ids.to(device),
     attention_mask=attention_mask.to(device),
     max_seq_len=256,
-    search_type='beam',
+    search_type="beam",
 )
 
 outs_txt = tokenizer.batch_decode(outs.cpu().numpy(), skip_special_tokens=True, clean_up_tokenization_spaces=True)
@@ -231,15 +231,53 @@ uv sync --group dev
 3. 运行项目（`uv run` 会自动使用 `.venv` 中的解释器）：
 
 ```bash
-uv run cli_demo.py
-uv run api_demo.py
+uv run chatlm-cli
+uv run chatlm-api
 ```
 
-下文所有 `python xxx.py` 形式的命令都可以等价替换为 `uv run python xxx.py`；也可以先激活虚拟环境（Windows：`.venv\Scripts\activate`，Linux/macOS：`source .venv/bin/activate`）后直接使用 `python`。
+`uv sync` 会把本项目以 editable 模式安装进 `.venv`，因此 `chatlm`、`chatlm-cli`、`chatlm-api` 等命令可以直接使用（`uv run chatlm ...` 会自动使用 `.venv` 中的解释器）；也可以先激活虚拟环境（Windows：`.venv\Scripts\activate`，Linux/macOS：`source .venv/bin/activate`）后直接调用。
 
 > 依赖统一声明在 `pyproject.toml` 中，精确版本由 `uv.lock` 锁定。如果不用 `uv`，可以用 `pip install -r pyproject.toml`（pip ≥ 23.1）安装，但 `pip` 不识别 `tool.uv.index`，需要自行追加 `--index-url https://download.pytorch.org/whl/cu121` 才能装上 GPU 版 `torch`。
 
-### 3.2.3 下载预训练模型及模型配置文件
+### 3.2.3 项目结构
+
+```
+ChatLM-mini-Chinese
+├─configs/                     # accelerate 等运行配置
+├─data/                        # 数据集（示例 parquet 与原始语料）
+├─docs/img/                    # 文档配图
+├─notebook/                    # train.ipynb、tokenizer 训练、C-Eval/CMMLU 评测
+├─src/chatlm/                  # 全部业务源码
+│  ├─config.py                 # 训练/推理配置（dataclass）
+│  ├─paths.py                  # 统一路径定义（可用环境变量覆盖）
+│  ├─cli.py                    # 统一命令行入口 `chatlm`
+│  ├─data/                     # 数据集、tokenizer 训练、语料处理
+│  ├─models/                   # 模型定义
+│  ├─training/                 # 预训练 / SFT / DPO / accelerate 训练循环
+│  ├─inference/                # ChatBot、CLI、FastAPI 服务
+│  └─utils/                    # 日志、指标、文本、IO、HF 适配
+├─tests/                       # 单元测试（pytest）
+├─artifacts/                   # 训练产物：tokenizer、权重、日志（不入库）
+└─pyproject.toml
+```
+
+常用命令：
+
+| 场景 | 命令 |
+| --- | --- |
+| 训练 tokenizer | `uv run chatlm-tokenizer` |
+| 预训练（本项目 trainer） | `uv run chatlm train` |
+| 预训练（HuggingFace trainer） | `uv run chatlm pretrain` |
+| SFT 微调 | `uv run chatlm sft` |
+| DPO 偏好优化 | `uv run chatlm dpo train` |
+| 合并 lora adapter | `uv run chatlm dpo merge` |
+| 命令行对话 | `uv run chatlm-cli` |
+| 启动 API 服务 | `uv run chatlm-api` |
+| 代码检查 / 单元测试 | `uv run ruff check . && uv run pytest` |
+
+产物目录与数据目录可通过环境变量 `CHATLM_ARTIFACT_DIR`、`CHATLM_DATA_DIR` 覆盖。
+
+### 3.2.4 下载预训练模型及模型配置文件
 
 用`git`命令从`Hugging Face Hub`下载模型权重及配置文件，需要先安装[Git LFS](https://docs.github.com/zh/repositories/working-with-files/managing-large-files/installing-git-large-file-storage)，然后运行: 
 
@@ -250,10 +288,10 @@ git clone --depth 1 https://huggingface.co/charent/ChatLM-mini-Chinese
 # 如果无法连接huggingface，请从modelscope下载
 git clone --depth 1 https://www.modelscope.cn/charent/ChatLM-mini-Chinese.git
 
-mv ChatLM-mini-Chinese model_save
+mv ChatLM-mini-Chinese artifacts
 ```
 
-也可以直接从`Hugging Face Hub`仓库[ChatLM-Chinese-0.2B](https://huggingface.co/charent/ChatLM-mini-Chinese)手工下载，将下载的文件移动到`model_save`目录下即可。
+也可以直接从`Hugging Face Hub`仓库[ChatLM-Chinese-0.2B](https://huggingface.co/charent/ChatLM-mini-Chinese)手工下载，将下载的文件移动到`artifacts`目录下即可。
 
 ## 3.3 Tokenizer训练  
 
@@ -267,11 +305,11 @@ mv ChatLM-mini-Chinese model_save
 
 2. 训练tokenizer
 
-`char level`和`byte level`的区别如下（具体使用上的区别请自行检索资料）。默认训练`char level`的tokenizer，如果需要`byte level`，在`train_tokenizer.py`中设置`token_type='byte'`即可。
+`char level`和`byte level`的区别如下（具体使用上的区别请自行检索资料）。默认训练`char level`的tokenizer，如果需要`byte level`，加参数 `--token-type byte` 即可。
 
 ```python
 # 原始文本
-txt = '这是一段中英混输的句子, （chinese and English, here are words.）'
+txt = "这是一段中英混输的句子, （chinese and English, here are words.）"
 
 tokens = charlevel_tokenizer.tokenize(txt)
 print(tokens)
@@ -284,9 +322,12 @@ print(tokens)
 # ['Ġè¿Ļæĺ¯', 'ä¸Ģæ®µ', 'ä¸Ńèĭ±', 'æ··', 'è¾ĵ', 'çļĦ', 'åı¥åŃĲ', 'Ġ,', 'Ġ(', 'Ġch', 'inese', 'Ġand', 'ĠEng', 'lish', 'Ġ,', 'Ġh', 'ere', 'Ġare', 'Ġw', 'ord', 's', 'Ġ.', 'Ġ)']
 ```
 开始训练：
-```python
+```bash
 # 确保你的训练语料`txt`文件已经data目录下
-python train_tokenizer.py
+uv run chatlm-tokenizer
+
+# 也可以显式指定参数
+uv run chatlm-tokenizer --corpus-file data/wiki.simple.txt --token-type char --vocab-size 40960
 ```
 
 ## 3.4 Text-to-Text 预训练 
@@ -301,7 +342,7 @@ python train_tokenizer.py
    
 2. jupyter-lab 或者 jupyter notebook:  
 
-    见文件`train.ipynb`，推荐使用jupyter-lab，避免考虑与服务器断开后终端进程被杀的情况。 
+    见文件 `notebook/train.ipynb`，推荐使用jupyter-lab，避免考虑与服务器断开后终端进程被杀的情况。 
 
 3. 控制台： 
 
@@ -312,37 +353,36 @@ python train_tokenizer.py
     accelerate config
     ```
 
-    开始训练，如果要使用工程提供的配置请在下面的命令`accelerate launch`后加上参数`--config_file ./accelerate.yaml`，*该配置按照单机2xGPU配置。* 
+    开始训练，如果要使用工程提供的配置请在下面的命令`accelerate launch`后加上参数`--config_file configs/accelerate.yaml`，*该配置按照单机2xGPU配置。* 
 
-    *预训练有两个脚本，本项目实现的trainer对应`train.py`，huggingface实现的trainer对应`pre_train.py`，用哪个都可以，效果一致。本项目实现的trainer训练信息展示更美观、更容易修改训练细节（如损失函数，日志记录等），均支持断点继续训练，本项目实现的trainer支持在任意位置断点后继续训练，按`ctrl+c`退出脚本时会保存断点信息。* 
+    *预训练有两个脚本，本项目实现的trainer对应 `chatlm train`（`src/chatlm/training/accelerate_trainer.py`），huggingface实现的trainer对应 `chatlm pretrain`（`src/chatlm/training/pretrain.py`），用哪个都可以，效果一致。本项目实现的trainer训练信息展示更美观、更容易修改训练细节（如损失函数，日志记录等），均支持断点继续训练，本项目实现的trainer支持在任意位置断点后继续训练，按`ctrl+c`退出脚本时会保存断点信息。* 
 
     单机单卡：
     ```bash
     # 本项目实现的trainer
-    accelerate launch ./train.py train
+    uv run chatlm train
 
     # 或者使用 huggingface trainer
-    python pre_train.py
+    uv run chatlm pretrain
     ```
 
     单机多卡：
     `2`为显卡数量，请根据自己的实际情况修改。
     ```bash
     # 本项目实现的trainer
-    accelerate launch --multi_gpu --num_processes 2 ./train.py train
+    accelerate launch --multi_gpu --num_processes 2 -m chatlm.training.accelerate_trainer train
 
     # 或者使用 huggingface trainer
-    accelerate launch --multi_gpu --num_processes 2 pre_train.py
+    accelerate launch --multi_gpu --num_processes 2 -m chatlm.training.pretrain
     ```
 
     从断点处继续训练：
     ```bash
     # 本项目实现的trainer
-    accelerate launch --multi_gpu --num_processes 2 ./train.py train --is_keep_training=True
+    accelerate launch --multi_gpu --num_processes 2 -m chatlm.training.accelerate_trainer train --is-keep-training
 
     # 或者使用 huggingface trainer
-    # 需要在`pre_train.py`中的`train`函数添加`resume_from_checkpoint=True`
-    accelerate launch --multi_gpu --num_processes 2 pre_train.py
+    accelerate launch --multi_gpu --num_processes 2 -m chatlm.training.pretrain --resume-from-checkpoint
     ```
 
 ## 3.5 SFT微调 
@@ -356,15 +396,15 @@ sft指令微调数据集示例：
 ```
 
 参考`data`目录下的示例`parquet`文件制作自己的数据集，数据集格式：`parquet`文件分两列，一列`prompt`文本，表示提示语，一列`response`文本，表示期待的模型输出。
-微调细节见`model/trainer.py`下的`train`方法, `is_finetune`设置为`True`时，将进行微调，微调默认会冻结embedding层和encoder层，只训练decoder层。如需要冻结其他参数，请自行调整代码。 
+微调细节见`src/chatlm/training/accelerate_trainer.py`下的`train`方法, `is_finetune`设置为`True`时，将进行微调，微调默认会冻结embedding层和encoder层，只训练decoder层。如需要冻结其他参数，请自行调整代码。 
 
 运行SFT微调：
 ``` bash
-# 本项目实现的trainer， 添加参数`--is_finetune=True`即可, 参数`--is_keep_training=True`可从任意断点处继续训练
-accelerate launch --multi_gpu --num_processes 2 ./train.py --is_finetune=True
+# 本项目实现的trainer， 添加参数`--is-finetune`即可, 参数`--is-keep-training`可从任意断点处继续训练
+uv run chatlm train --is-finetune
 
-# 或者使用 huggingface trainer, 多GPU请用accelerate launch --multi_gpu --num_processes gpu个数 sft_train.py
-python sft_train.py
+# 或者使用 huggingface trainer, 多GPU请用 accelerate launch --multi_gpu --num_processes gpu个数 -m chatlm.training.sft
+uv run chatlm sft
 ```
 
 ## 3.6 RLHF（强化学习人类反馈优化方法）
@@ -379,7 +419,7 @@ python sft_train.py
 2.  使用DPO（直接偏好优化，Direct Preference Optimization）微调（**本项目采用DPO微调方法，比较节省显存**）
     在获得SFT模型的基础上，无需训练奖励模型，取得正向回答（chosen）和负向回答（rejected）即可开始微调。微调的`chosen`文本来自原数据集[alpaca-gpt4-data-zh](https://huggingface.co/datasets/c-s-ale/alpaca-gpt4-data-zh)，拒绝文本`rejected`来自SFT微调1个epoch后的模型输出，另外两个数据集：[huozi_rlhf_data_json](https://huggingface.co/datasets/Skepsun/huozi_rlhf_data_json)和[rlhf-reward-single-round-trans_chinese](https://huggingface.co/datasets/beyond/rlhf-reward-single-round-trans_chinese)，合并后共8万条dpo数据。
     
-    dpo数据集处理过程见`utils/dpo_data_process.py`。
+    dpo数据集处理过程见`src/chatlm/data/dpo.py`。
     
 DPO偏好优化数据集示例：
 ```json
@@ -392,15 +432,15 @@ DPO偏好优化数据集示例：
 
 运行偏好优化：
 ``` bash
-#  多GPU请用accelerate launch --multi_gpu --num_processes gpu个数 dpo_train.py
-python dpo_train.py
+#  多GPU请用 accelerate launch --multi_gpu --num_processes gpu个数 -m chatlm.training.dpo train
+uv run chatlm dpo train
 ```
 
 ## 3.7 推理 
-确保`model_save`目录下有以下文件，这些文件都可以在`Hugging Face Hub`仓库[ChatLM-Chinese-0.2B](https://huggingface.co/charent/ChatLM-mini-Chinese)中找到：
+确保`artifacts`目录下有以下文件，这些文件都可以在`Hugging Face Hub`仓库[ChatLM-Chinese-0.2B](https://huggingface.co/charent/ChatLM-mini-Chinese)中找到：
 ```bash
 ChatLM-mini-Chinese
-├─model_save
+├─artifacts
 |  ├─config.json
 |  ├─configuration_chat_model.py
 |  ├─generation_config.json
@@ -413,12 +453,12 @@ ChatLM-mini-Chinese
 
 1. 控制台运行：
 ```bash
-python cli_demo.py
+uv run chatlm-cli
 ```
 
 2. API调用
 ```bash
-python api_demo.py
+uv run chatlm-api
 ```
 
 API调用示例：
@@ -430,7 +470,7 @@ curl --location '127.0.0.1:8812/api/chat' \
     "input_txt": "感冒了要怎么办"
 }'
 ```
-![api demo](./img/api_example.png)
+![api demo](./docs/img/api_example.png)
 
 ## 3.8 下游任务微调
 
@@ -444,9 +484,9 @@ curl --location '127.0.0.1:8812/api/chat' \
 }
 ```
 
-可以直接使用`sft_train.py`脚本进行微调，脚本[finetune_IE_task.ipynb](./finetune_examples/info_extract/finetune_IE_task.ipynb)里面包含详细的解码过程。训练数据集约`17000`条，学习率`5e-5`，训练epoch`5`。微调后其他任务的对话能力也没有消失。
+可以直接使用 `chatlm-sft` 进行微调，脚本[finetune_IE_task.ipynb](./finetune_examples/info_extract/finetune_IE_task.ipynb)里面包含详细的解码过程。训练数据集约`17000`条，学习率`5e-5`，训练epoch`5`。微调后其他任务的对话能力也没有消失。
 
-![信息抽取任务微调后的对话能力](./img/ie_task_chat.png)
+![信息抽取任务微调后的对话能力](./docs/img/ie_task_chat.png)
 
 微调效果：
 将`百度三元组抽取数据集`公开的`dev`数据集作为测试集，对比传统方法[pytorch_IE_model](https://github.com/charent/pytorch_IE_model)。
@@ -460,7 +500,7 @@ curl --location '127.0.0.1:8812/api/chat' \
 备注：`ChatLM-Chinese-0.2B无预训练`指直接初始化随机参数，开始训练，学习率`1e-4`，其他参数和微调一致。
 
 ## 3.9 C-Eval分数
-模型本身没有使用较大的数据集训练，也没有针对回答选择题的指令做微调，C-Eval分数基本上是baseline水平，有需要的可以当个参考。C-Eval评测代码见：`eval/c_eavl.ipynb`
+模型本身没有使用较大的数据集训练，也没有针对回答选择题的指令做微调，C-Eval分数基本上是baseline水平，有需要的可以当个参考。C-Eval评测代码见：`notebook/c_eval.ipynb`
 
 | category   | correct | question_count| accuracy |
 |    :---    |  :----:    |    :---:      |  :---:   |

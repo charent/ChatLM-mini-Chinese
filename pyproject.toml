@@ -1,10 +1,21 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "chatlm-mini-chinese"
-version = "0.1.0"
+version = "0.2.0"
 description = "中文对话0.2B小模型 ChatLM-Chinese-0.2B：从0开始的 tokenizer 训练、Text-to-Text 预训练、SFT 微调、DPO 偏好优化（基于 T5）"
 readme = "README.md"
 requires-python = ">=3.10,<3.12"
 license = { text = "Apache-2.0" }
+keywords = ["t5", "chinese", "chatbot", "sft", "dpo", "pretrain"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 
 # 依赖版本锁定在 uv.lock 中，改动后执行 `uv lock` 更新
 dependencies = [
@@ -39,17 +50,30 @@ dependencies = [
     "uvicorn==0.24.0.post1",
 ]
 
-# 预训练、SFT、DPO 训练时可能用到的额外工具（jupyter 交互式训练见 train.ipynb）
+[project.scripts]
+chatlm = "chatlm.cli:main"
+chatlm-cli = "chatlm.inference.cli:main"
+chatlm-api = "chatlm.inference.api:main"
+chatlm-tokenizer = "chatlm.data.tokenizer:main"
+chatlm-pretrain = "chatlm.training.pretrain:main"
+chatlm-sft = "chatlm.training.sft:main"
+chatlm-dpo = "chatlm.training.dpo:main"
+chatlm-train = "chatlm.training.accelerate_trainer:main"
+
+# 预训练、SFT、DPO 训练时可能用到的额外工具（jupyter 交互式训练见 notebook/train.ipynb）
 [dependency-groups]
 dev = [
     "ipykernel>=6.29.0",
     "jupyterlab>=4.0.0",
+    "pre-commit>=3.6.0",
+    "pytest>=7.4.0",
+    "ruff==0.17.6",
 ]
 
-[tool.uv]
-# 本项目不是可安装的库，仅管理依赖环境
-package = false
+[tool.hatch.build.targets.wheel]
+packages = ["src/chatlm"]
 
+[tool.uv]
 # 默认只安装运行依赖，jupyter 相关工具用 `uv sync --group dev` 按需安装
 default-groups = []
 
@@ -74,3 +98,27 @@ explicit = true
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu121" }
+
+[tool.ruff]
+src = ["src"]
+line-length = 160
+target-version = "py310"
+extend-exclude = ["notebook", "artifacts", "data", "finetune_examples"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = [
+    "E501",  # 行长度由 formatter 控制
+    "B008",  # 函数调用作为默认值（argparse/fastapi 常见写法）
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["chatlm"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+pythonpath = ["src"]
